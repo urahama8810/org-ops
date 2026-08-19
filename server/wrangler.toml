@@ -1,0 +1,12 @@
+name = "org-ops"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+workers_dev = true
+
+# デプロイ前に、KV（データの置き場所）を1つ作って id をここに入れます。
+#   npx wrangler kv namespace create ORG_OPS
+# 実行すると id が表示されるので、下の "" の中に貼り付けてください。
+# server/deploy.ps1 を使うと、この書き換えも自動で行います。
+[[kv_namespaces]]
+binding = "ORG_OPS"
+id = ""

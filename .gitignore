@@ -1,0 +1,11 @@
+# 一時ファイル
+*.tmp
+*.log
+node_modules/
+
+# Windows / OneDrive
+Thumbs.db
+desktop.ini
+
+# レクチャー動画は docs/guide.html を公開版とするため、こちらは重複を避けて除外
+guide/使い方レクチャー.html
