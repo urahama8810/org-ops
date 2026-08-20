@@ -347,7 +347,10 @@ svg.ico{flex:0 0 auto;vertical-align:-.16em;}
 .grid > .col > .card:last-child:not(:first-child){flex:1;}
 @media(max-width:1240px){.grid.c21{grid-template-columns:1fr;}}
 @media(max-width:1100px){.grid.c4,.grid.c3{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media(max-width:820px){.grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr;}}
+@media(max-width:820px){
+  .grid.c2{grid-template-columns:1fr;}
+  .grid.c3,.grid.c4{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
 
 /* ---------- 区切り見出し ---------- */
 .section-title{
@@ -732,6 +735,9 @@ legend{font-size:var(--fs-sm);font-weight:700;color:var(--text-2);padding:0 var(
    ============================================================ */
 @media(max-width:820px){
   #app{flex-direction:column;}
+  /* 長い語で画面が横に流れないようにする */
+  #main{overflow-x:hidden;}
+  .card,.tile,.notice,.help-block,.alert,.kv{overflow-wrap:break-word;}
   #sidebar{
     width:100%;flex:0 0 auto;height:auto;position:sticky;top:0;z-index:40;
     flex-direction:column;box-shadow:var(--sh-2);
@@ -745,15 +751,27 @@ legend{font-size:var(--fs-sm);font-weight:700;color:var(--text-2);padding:0 var(
   }
   #nav::-webkit-scrollbar{display:none;}
   .nav-group{display:none;}
-  .nav-item{white-space:nowrap;margin:0;padding:6px 11px;flex:0 0 auto;
-    background:rgba(255,255,255,.05);}
+  .nav-item{white-space:nowrap;margin:0;padding:5px 10px;flex:0 0 auto;
+    font-size:12.5px;gap:6px;background:rgba(255,255,255,.05);}
+  .nav-item .count{font-size:10px;padding:0 5px;min-width:16px;}
   .nav-item.active:before{display:none;}
   .nav-item .lb{overflow:visible;}
   .side-foot{display:none;}
-  .topbar{padding:10px var(--sp-4);position:static;}
-  .topbar h1{font-size:var(--fs-md);}
+  /* 上部の帯は、狭い画面では3段に分ける（1段目：画面名とボタン、2段目：状態、3段目：説明） */
+  .topbar{
+    display:grid;position:static;padding:8px var(--sp-4);
+    grid-template-columns:1fr auto auto;
+    grid-template-areas:"title theme print" "meta meta meta" "desc desc desc";
+    gap:5px var(--sp-2);align-items:center;
+  }
+  .topbar > div:first-child{grid-area:title;min-width:0;}
+  .topbar h1{font-size:var(--fs-base);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .topbar .spacer{display:none;}
-  .topbar .desc{margin-top:0;}
+  .topbar #themeBtn{grid-area:theme;}
+  .topbar [data-act="printView"]{grid-area:print;}
+  .topbar .desc{grid-area:desc;width:auto;margin-top:0;font-size:var(--fs-xs);line-height:1.55;}
+  #topMeta{grid-area:meta;min-width:0;gap:4px;}
+  #topMeta .badge{font-size:10px;padding:0 6px;}
   #view{padding:var(--sp-4) var(--sp-4) 56px;}
   .card-head{padding:10px var(--sp-3);}
   .card-body{padding:var(--sp-3);}
@@ -892,6 +910,27 @@ table.tbl td.actions .btn.danger:hover{
 .intro-card .t{font-size:var(--fs-md);font-weight:700;margin-bottom:2px;}
 .intro-card .d{font-size:var(--fs-sm);color:var(--text-2);line-height:1.75;}
 .intro-card .btn-row{margin-top:var(--sp-3);}
+
+/* 人を選ぶカードは、スマートフォンでは小さめに並べる */
+@media(max-width:820px){
+  .pick-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:var(--sp-2);}
+  .pick-card{padding:var(--sp-3) 4px;}
+  .pick-card .av{width:34px;height:34px;font-size:14px;}
+  .pick-card .nm{font-size:12.5px;}
+  .pick-card .rl{font-size:10.5px;overflow-wrap:break-word;}
+  .me-head{padding:var(--sp-3);}
+  .me-avatar{width:34px;height:34px;font-size:15px;}
+  .me-name{font-size:var(--fs-md);}
+}
+
+/* ごく狭い端末（iPhone SE など）では、2列をやめて1列にする */
+@media(max-width:400px){
+  .grid.c3,.grid.c4{grid-template-columns:1fr;}
+  #view{padding:var(--sp-3) var(--sp-3) 48px;}
+  .card-head,.card-body{padding-left:var(--sp-3);padding-right:var(--sp-3);}
+  .pick-grid{grid-template-columns:repeat(auto-fill,minmax(92px,1fr));}
+  .topbar{padding:8px var(--sp-3);}
+}
 
 </style>
 </head>
