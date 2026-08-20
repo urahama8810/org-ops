@@ -1131,7 +1131,7 @@ var DEFAULT_JOB_TYPES = [
   '事業責任者','営業','マーケティング','顧客対応','開発','経理・総務','管理職','経営幹部'
 ];
 
-/* 第6章 役割スコアカードの標準ひな形（職種別の初期値） */
+/* 第6章 役割表の標準ひな形（職種別の初期値） */
 var SCORECARD_TEMPLATES = {
   '事業責任者':{
     purpose:'担当事業の売上・利益に責任を持ち、事業として継続的に成立させる。',
@@ -1230,7 +1230,7 @@ var PLAN_WEEKS = [
     items:['全社員を一覧に入力した','全員の直属上司を確定した','全員の主要業務3〜5個を記入した','全員の成果物を定義した','全員のKPIと目標値を記入した','権限と要承認事項を記入した','資料・データの保存場所を記入した'] },
   { id:'w2', period:'Week 2', range:[2,2], task:'会社目標3〜5個と部門目標を確定', output:'会社・部門目標表',
     items:['会社目標を3〜5個に絞った','各目標の指標・現在値・90日目標を決めた','各目標の責任者を決めた','正とするデータの場所を決めた','部門目標に展開した'] },
-  { id:'w3', period:'Week 2〜3', range:[2,3], task:'職種を6〜8区分し役割定義', output:'役割スコアカード',
+  { id:'w3', period:'Week 2〜3', range:[2,3], task:'職種を6〜8区分し役割定義', output:'役割表',
     items:['職種を6〜8区分に分類した','各職種の役割の目的を書いた','主要責任を最大5項目にした','KPIを最大5項目にした','権限と要承認を分けた','必須報告のルールを書いた','上位等級との差を書いた'] },
   { id:'w4', period:'Week 3〜5', range:[3,5], task:'週次KPI会議開始', output:'KPI表・議事記録',
     items:['週次KPI会議の曜日と時間を固定した','KPI表の様式を決めた','45分以内で終える運用にした','未達項目の原因・対策・期限を記録している','経営判断事項を記録している'] },
@@ -1239,23 +1239,23 @@ var PLAN_WEEKS = [
   { id:'w6', period:'Week 5〜7', range:[5,7], task:'評価制度確定', output:'評価シート',
     items:['一般社員の配点を確定した','管理職の配点を確定した','4段階の定義を全社に説明した','自己評価→上司評価→調整→確定→説明の手順を決めた','評価者研修または説明会を実施した'] },
   { id:'w7', period:'Week 6〜8', range:[6,8], task:'G1〜G5等級制度作成', output:'等級・昇格基準',
-    items:['G1〜G5の期待状態を確定した','全社員を仮格付けした','G4以降の管理職／専門職コースを決めた','昇格の基本条件を明文化した','等級と役割スコアカードを紐づけた'] },
+    items:['G1〜G5の期待状態を確定した','全社員を仮格付けした','G4以降の管理職／専門職コースを決めた','昇格の基本条件を明文化した','等級と役割表を紐づけた'] },
   { id:'w8', period:'Week 8〜12', range:[8,12], task:'試験運用・初回評価・修正', output:'評価結果・改訂版',
     items:['初回試験評価を実施した','評価者間の差を確認し調整した','基準の曖昧な箇所を修正した','第1四半期は報酬連動させていない','社労士等に就業規則・賃金規程との整合を確認した'] }
 ];
 
 /* 第15章 明日から着手する順番 */
 var FIRST_STEPS = [
-  '社内プロジェクト責任者を1名決める',
-  '全社員一覧を作る',
-  '全社員の直属上司を確定する',
+  'この取り組みの進行役を1名決める',
+  'メンバー全員を台帳に登録する',
+  '全員の直属の上司を決める',
   '会社の90日目標を3〜5個決める',
-  '各社員の仕事内容をヒアリングする',
-  '6〜8職種の役割スコアカードを作る',
-  '週次KPI会議を開始する',
-  '月次1on1を開始する',
-  '3か月後に初回試験評価を実施する',
-  '2回程度運用後に報酬連動を検討する'
+  '一人ひとりの仕事の内容を聞き取る',
+  '6〜8職種の役割表をつくる',
+  '週次KPI会議を始める',
+  '月次1on1を始める',
+  '3か月後に初回の試験評価を行う',
+  '2回ほど運用してから、給与への反映を検討する'
 ];
 
 /* 第2章 プロジェクト体制 */
@@ -2268,12 +2268,12 @@ function buildAlerts(){
   if(goalNoData.length)
     add('warn','「正とするデータ」が未設定の目標が'+goalNoData.length+'件','どの数字を正とするかで揉めなくなります。','goals',goalNoData.length);
 
-  /* --- 役割スコアカード（第6章：6〜8職種） --- */
+  /* --- 役割表（第6章：6〜8職種） --- */
   if(d.scorecards.length < 6)
-    add('warn','役割スコアカードが'+d.scorecards.length+'職種のみ','6〜8区分の作成が目安です。','scorecards',d.scorecards.length);
+    add('warn','役割表が'+d.scorecards.length+'職種のみ','6〜8区分の作成が目安です。','scorecards',d.scorecards.length);
   var empNoJob = d.employees.filter(function(e){ return !e.jobType; });
   if(empNoJob.length && d.scorecards.length)
-    add('warn','職種が未設定の社員が'+empNoJob.length+'名','役割スコアカードと紐づきません。','employees',empNoJob.length);
+    add('warn','職種が未設定の社員が'+empNoJob.length+'名','役割表と紐づきません。','employees',empNoJob.length);
 
   /* --- 週次KPI会議（第7章） --- */
   var lw = latestKpiWeek();
@@ -2480,7 +2480,7 @@ function readinessScore(){
     gRate = Math.round(full/comp.length*100 * clamp(comp.length/3,0,1));
   }
   parts.push({ key:'goals', label:'会社・部門目標', rate:gRate, view:'goals' });
-  /* 3) 役割スコアカード */
+  /* 3) 役割表 */
   var scRate = clamp(Math.round(d.scorecards.length/6*100),0,100);
   parts.push({ key:'scorecards', label:'職種別役割表', rate:scRate, view:'scorecards' });
   /* 4) 週次KPI（直近4週の実施率） */
@@ -2527,22 +2527,23 @@ VIEWS.dashboard = {
     var pp = planProgress();
     var h = '';
 
-    /* このパソコンで初めて開いた人には、共有で後から入った人にも案内を出す */
-    if(!seenIntro()){
+    /* このパソコンで初めて開いた人に案内を出す。
+       ただし、まだ何も登録されていないときは、下の「ようこそ」に任せる */
+    var isNew = !d.settings.companyName && !d.employees.length;
+    if(!seenIntro() && !isNew){
       h += renderIntroCard();
     }
 
-    /* 会社名が未設定なら最初の案内 */
-    if(!d.settings.companyName && !d.employees.length){
+    if(isNew){
       h += '<div class="notice">'+
         '<b>ようこそ。</b> このアプリは、役割・目標・数字・報告のルールを1か所にまとめて、'+
         'チーム全員が同じ情報を見ながら会社を動かすための道具です。'+
         'まず <b>設定</b> で会社名を入れ、次に <b>社員・役割台帳</b> にメンバーを登録してください。'+
         '<div class="btn-row" style="margin-top:9px;">'+
-        '<button class="btn primary" data-act="go" data-view="settings">① 設定を開く</button>'+
-        '<button class="btn" data-act="go" data-view="employees">② 社員を登録する</button>'+
-        '<button class="btn" data-act="loadDemo">操作を試す（サンプルデータを入れる）</button>'+
-        '<a class="btn" href="'+GUIDE_URL+'" target="_blank" rel="noopener">使い方レクチャーを見る（動画・約16分）</a>'+
+        '<button class="btn primary" data-act="go" data-view="settings">'+ic('settings',14)+'① 設定を開く</button>'+
+        '<button class="btn" data-act="go" data-view="employees">'+ic('users',14)+'② メンバーを登録する</button>'+
+        '<button class="btn" data-act="loadDemo">'+ic('sparkle',14)+'操作を試す（サンプルデータを入れる）</button>'+
+        '<a class="btn" href="'+GUIDE_URL+'" target="_blank" rel="noopener">'+ic('play',14)+'使い方の動画を見る（約17分）</a>'+
         '</div></div>';
     }
 
@@ -3126,7 +3127,7 @@ function employeeAllFields(){
     { key:'empType',   label:'雇用形態', type:'select', options:[''].concat(EMPLOYMENT_TYPES) },
     { key:'joinDate',  label:'入社日', type:'date' },
     { key:'jobType',   label:'職種区分', type:'select', options:[''].concat(jobTypeList()),
-      hint:'職種別役割スコアカードと紐づきます。' },
+      hint:'職種別役割表と紐づきます。' },
     { key:'grade',     label:'等級', type:'select', options:[''].concat(DB.data.grades.map(function(g){return g.code;})) },
 
     { type:'heading', label:'組織' },
@@ -3359,7 +3360,7 @@ function employeeDetailHtml(e){
     row('備考', nl2br(e.notes))+
     '</dl></fieldset>';
   if(sc){
-    h += '<fieldset><legend>職種の役割スコアカード（'+esc(sc.jobType)+'）</legend>'+
+    h += '<fieldset><legend>職種の役割表（'+esc(sc.jobType)+'）</legend>'+
       '<div class="small">'+esc(sc.purpose)+'</div>'+
       '<div class="small muted" style="margin-top:6px;">必須報告：'+esc(sc.reports||'—')+'</div></fieldset>';
   }
@@ -3671,7 +3672,7 @@ action('goalPrint', function(){
 
 /* ===== 07-scorecards.js ===== */
 /* ============================================================
-   07-scorecards.js  職種別役割スコアカード
+   07-scorecards.js  職種別役割表
    ============================================================ */
 
 var SCORECARD_FIELDS = [
@@ -3694,13 +3695,13 @@ var SCORECARD_FIELDS = [
 ];
 
 VIEWS.scorecards = {
-  title:'職種別役割スコアカード',
+  title:'職種別役割表',
   desc:'Week 2〜3／シート3。職種を6〜8区分し、責任・KPI・権限・報告ルールを定義します。',
   render:function(){
     var d = DB.data;
     var h = '';
     h += '<div class="help-block">'+
-      '<b>役割スコアカードは「人」ではなく「職種」に対して作ります。</b> '+
+      '<b>役割表は「人」ではなく「職種」に対して作ります。</b> '+
       '担当者が代わっても会社の期待が変わらない状態にするためです。まず6〜8区分に分類し、それぞれ8項目を埋めてください。</div>';
 
     if(d.scorecards.length < 6)
@@ -3770,7 +3771,7 @@ action('scNew', function(){
 action('scEdit', function(ds){
   var s = byId(DB.data.scorecards, ds.id);
   if(!s) return;
-  openForm({ title:'役割スコアカード：'+s.jobType, wide:true, fields:SCORECARD_FIELDS, value:s,
+  openForm({ title:'役割表：'+s.jobType, wide:true, fields:SCORECARD_FIELDS, value:s,
     onSubmit:function(v){
       v.id = s.id;
       DB.data.scorecards[DB.data.scorecards.indexOf(s)] = v; DB.save(); render(); toast('保存しました','ok');
@@ -3789,7 +3790,7 @@ action('scDel', function(ds){
 
 action('scCreateDefaults', function(){
   confirmDialog('標準8職種の作成',
-    '標準のひな形から8職種（事業責任者・営業・マーケティング・顧客対応・開発・経理総務・管理職・経営幹部）の役割スコアカードを作成します。\n\n'+
+    '標準のひな形から8職種（事業責任者・営業・マーケティング・顧客対応・開発・経理総務・管理職・経営幹部）の役割表を作成します。\n\n'+
     '既に同じ職種名がある場合は追加しません。作成後、必ず自社の実態に合わせて修正してください。',
     function(){
       var existing = DB.data.scorecards.map(function(s){ return s.jobType; });
@@ -3822,16 +3823,16 @@ function scorecardPrintHtml(s){
 }
 action('scPrintOne', function(ds){
   var s = byId(DB.data.scorecards, ds.id);
-  printHtml(s.jobType+' 役割スコアカード',
-    '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割スコアカード</h2></div>'+
+  printHtml(s.jobType+' 役割表',
+    '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割表</h2></div>'+
     '<div class="card-body">'+scorecardPrintHtml(s)+'</div></div>');
 });
 action('scPrint', function(){
   var h = DB.data.scorecards.map(function(s){
-    return '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割スコアカード</h2></div>'+
+    return '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割表</h2></div>'+
            '<div class="card-body">'+scorecardPrintHtml(s)+'</div></div>';
   }).join('');
-  printHtml('職種別役割スコアカード', h || '<p>登録がありません。</p>');
+  printHtml('職種別役割表', h || '<p>登録がありません。</p>');
 });
 action('scCsv', function(){
   var rows = [['職種','役割の目的','主要責任','KPI','権限','要承認','必須報告','求める行動','上位等級との差','該当社員']];
@@ -6030,7 +6031,7 @@ VIEWS.settings = {
       '<div class="form-grid">'+
       fieldHtml({key:'companyName', label:'会社名'}, d.settings.companyName)+
       fieldHtml({key:'ceoName', label:'代表取締役（最終責任者）', hint:'方針・会社目標・重要権限の最終決定者'}, d.settings.ceoName)+
-      fieldHtml({key:'projectLead', label:'社内プロジェクト責任者', hint:'進行、期限、資料統合、会議運営。1名を必ず決めます。'}, d.settings.projectLead)+
+      fieldHtml({key:'projectLead', label:'この取り組みの進行役', hint:'進行、期限、資料のとりまとめ、会議の運営。1名を必ず決めます。'}, d.settings.projectLead)+
       fieldHtml({key:'hrOwner', label:'管理／人事担当', hint:'台帳、1on1、評価記録、文書管理'}, d.settings.hrOwner)+
       fieldHtml({key:'externalAdvisor', label:'外部確認（社労士等）', hint:'就業規則・賃金規程・報酬連動の確認'}, d.settings.externalAdvisor)+
       fieldHtml({key:'startDate', label:'プロジェクト開始日', type:'date', hint:'この日から90日の進捗を数えます。'}, d.settings.startDate)+
@@ -6070,11 +6071,11 @@ VIEWS.settings = {
       '<div class="help-block">'+
       '<b>インストールは要りません。</b>下のアドレスを社内のメンバーに伝えるだけで、'+
       'パソコンでもスマートフォンでも同じアプリが開きます。'+
-      '初めての人には、先に使い方レクチャーを見てもらってください。</div>'+
+      '初めての人には、先に使い方の動画を見てもらってください。</div>'+
       '<div class="form-grid">'+
       fieldHtml({key:'appUrl', label:'アプリのアドレス', readonly:true,
                  hint:'このまま社内メールやチャットに貼り付けてください。'}, APP_URL)+
-      fieldHtml({key:'guideUrl', label:'使い方レクチャーのアドレス', readonly:true,
+      fieldHtml({key:'guideUrl', label:'使い方の動画のアドレス', readonly:true,
                  hint:'ナレーション付きの解説です。'}, GUIDE_URL)+
       '</div>'+
       '<div class="btn-row">'+
@@ -6240,7 +6241,7 @@ action('setSave', function(){
   DB.save(); render(); toast('設定を保存しました','ok');
 });
 action('copyAppUrl', function(){
-  var txt = 'アプリ：'+APP_URL+'\n使い方レクチャー：'+GUIDE_URL;
+  var txt = 'アプリ：'+APP_URL+'\n使い方の動画：'+GUIDE_URL;
   try{
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(txt);
@@ -6330,7 +6331,7 @@ action('dataCsvAll', function(){
 action('dataDemo', function(){ ACTIONS.loadDemo(); });
 action('loadDemo', function(){
   confirmDialog('サンプルデータの投入',
-    '操作を試すためのサンプル会社のデータ（社員8名、目標4個、役割スコアカード8職種、週次KPI2週分、1on1、評価）を入れます。\n\n'+
+    '操作を試すためのサンプル会社のデータ（社員8名、目標4個、役割表8職種、週次KPI2週分、1on1、評価）を入れます。\n\n'+
     '現在のデータはすべて置き換えられます。よろしいですか？',
     function(){ buildDemoData(); DB.save(); render(); toast('サンプルデータを入れました','ok'); },
     '入れる');
@@ -6406,7 +6407,7 @@ function buildDemoData(){
     handover:'共有フォルダ／管理部', replaceable:'低い（この人しかできない）' });
   d.settings.ceoEmpId = ceo.id;
 
-  /* 役割スコアカード */
+  /* 役割表 */
   DEFAULT_JOB_TYPES.forEach(function(jt){
     var t = SCORECARD_TEMPLATES[jt];
     if(!t) return;

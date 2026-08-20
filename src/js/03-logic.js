@@ -278,12 +278,12 @@ function buildAlerts(){
   if(goalNoData.length)
     add('warn','「正とするデータ」が未設定の目標が'+goalNoData.length+'件','どの数字を正とするかで揉めなくなります。','goals',goalNoData.length);
 
-  /* --- 役割スコアカード（第6章：6〜8職種） --- */
+  /* --- 役割表（第6章：6〜8職種） --- */
   if(d.scorecards.length < 6)
-    add('warn','役割スコアカードが'+d.scorecards.length+'職種のみ','6〜8区分の作成が目安です。','scorecards',d.scorecards.length);
+    add('warn','役割表が'+d.scorecards.length+'職種のみ','6〜8区分の作成が目安です。','scorecards',d.scorecards.length);
   var empNoJob = d.employees.filter(function(e){ return !e.jobType; });
   if(empNoJob.length && d.scorecards.length)
-    add('warn','職種が未設定の社員が'+empNoJob.length+'名','役割スコアカードと紐づきません。','employees',empNoJob.length);
+    add('warn','職種が未設定の社員が'+empNoJob.length+'名','役割表と紐づきません。','employees',empNoJob.length);
 
   /* --- 週次KPI会議（第7章） --- */
   var lw = latestKpiWeek();
@@ -490,7 +490,7 @@ function readinessScore(){
     gRate = Math.round(full/comp.length*100 * clamp(comp.length/3,0,1));
   }
   parts.push({ key:'goals', label:'会社・部門目標', rate:gRate, view:'goals' });
-  /* 3) 役割スコアカード */
+  /* 3) 役割表 */
   var scRate = clamp(Math.round(d.scorecards.length/6*100),0,100);
   parts.push({ key:'scorecards', label:'職種別役割表', rate:scRate, view:'scorecards' });
   /* 4) 週次KPI（直近4週の実施率） */

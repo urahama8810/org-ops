@@ -27,7 +27,7 @@ function employeeAllFields(){
     { key:'empType',   label:'雇用形態', type:'select', options:[''].concat(EMPLOYMENT_TYPES) },
     { key:'joinDate',  label:'入社日', type:'date' },
     { key:'jobType',   label:'職種区分', type:'select', options:[''].concat(jobTypeList()),
-      hint:'職種別役割スコアカードと紐づきます。' },
+      hint:'職種別役割表と紐づきます。' },
     { key:'grade',     label:'等級', type:'select', options:[''].concat(DB.data.grades.map(function(g){return g.code;})) },
 
     { type:'heading', label:'組織' },
@@ -260,7 +260,7 @@ function employeeDetailHtml(e){
     row('備考', nl2br(e.notes))+
     '</dl></fieldset>';
   if(sc){
-    h += '<fieldset><legend>職種の役割スコアカード（'+esc(sc.jobType)+'）</legend>'+
+    h += '<fieldset><legend>職種の役割表（'+esc(sc.jobType)+'）</legend>'+
       '<div class="small">'+esc(sc.purpose)+'</div>'+
       '<div class="small muted" style="margin-top:6px;">必須報告：'+esc(sc.reports||'—')+'</div></fieldset>';
   }

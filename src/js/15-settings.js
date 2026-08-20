@@ -14,7 +14,7 @@ VIEWS.settings = {
       '<div class="form-grid">'+
       fieldHtml({key:'companyName', label:'会社名'}, d.settings.companyName)+
       fieldHtml({key:'ceoName', label:'代表取締役（最終責任者）', hint:'方針・会社目標・重要権限の最終決定者'}, d.settings.ceoName)+
-      fieldHtml({key:'projectLead', label:'社内プロジェクト責任者', hint:'進行、期限、資料統合、会議運営。1名を必ず決めます。'}, d.settings.projectLead)+
+      fieldHtml({key:'projectLead', label:'この取り組みの進行役', hint:'進行、期限、資料のとりまとめ、会議の運営。1名を必ず決めます。'}, d.settings.projectLead)+
       fieldHtml({key:'hrOwner', label:'管理／人事担当', hint:'台帳、1on1、評価記録、文書管理'}, d.settings.hrOwner)+
       fieldHtml({key:'externalAdvisor', label:'外部確認（社労士等）', hint:'就業規則・賃金規程・報酬連動の確認'}, d.settings.externalAdvisor)+
       fieldHtml({key:'startDate', label:'プロジェクト開始日', type:'date', hint:'この日から90日の進捗を数えます。'}, d.settings.startDate)+
@@ -54,11 +54,11 @@ VIEWS.settings = {
       '<div class="help-block">'+
       '<b>インストールは要りません。</b>下のアドレスを社内のメンバーに伝えるだけで、'+
       'パソコンでもスマートフォンでも同じアプリが開きます。'+
-      '初めての人には、先に使い方レクチャーを見てもらってください。</div>'+
+      '初めての人には、先に使い方の動画を見てもらってください。</div>'+
       '<div class="form-grid">'+
       fieldHtml({key:'appUrl', label:'アプリのアドレス', readonly:true,
                  hint:'このまま社内メールやチャットに貼り付けてください。'}, APP_URL)+
-      fieldHtml({key:'guideUrl', label:'使い方レクチャーのアドレス', readonly:true,
+      fieldHtml({key:'guideUrl', label:'使い方の動画のアドレス', readonly:true,
                  hint:'ナレーション付きの解説です。'}, GUIDE_URL)+
       '</div>'+
       '<div class="btn-row">'+
@@ -224,7 +224,7 @@ action('setSave', function(){
   DB.save(); render(); toast('設定を保存しました','ok');
 });
 action('copyAppUrl', function(){
-  var txt = 'アプリ：'+APP_URL+'\n使い方レクチャー：'+GUIDE_URL;
+  var txt = 'アプリ：'+APP_URL+'\n使い方の動画：'+GUIDE_URL;
   try{
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(txt);
@@ -314,7 +314,7 @@ action('dataCsvAll', function(){
 action('dataDemo', function(){ ACTIONS.loadDemo(); });
 action('loadDemo', function(){
   confirmDialog('サンプルデータの投入',
-    '操作を試すためのサンプル会社のデータ（社員8名、目標4個、役割スコアカード8職種、週次KPI2週分、1on1、評価）を入れます。\n\n'+
+    '操作を試すためのサンプル会社のデータ（社員8名、目標4個、役割表8職種、週次KPI2週分、1on1、評価）を入れます。\n\n'+
     '現在のデータはすべて置き換えられます。よろしいですか？',
     function(){ buildDemoData(); DB.save(); render(); toast('サンプルデータを入れました','ok'); },
     '入れる');
@@ -390,7 +390,7 @@ function buildDemoData(){
     handover:'共有フォルダ／管理部', replaceable:'低い（この人しかできない）' });
   d.settings.ceoEmpId = ceo.id;
 
-  /* 役割スコアカード */
+  /* 役割表 */
   DEFAULT_JOB_TYPES.forEach(function(jt){
     var t = SCORECARD_TEMPLATES[jt];
     if(!t) return;

@@ -15,22 +15,23 @@ VIEWS.dashboard = {
     var pp = planProgress();
     var h = '';
 
-    /* このパソコンで初めて開いた人には、共有で後から入った人にも案内を出す */
-    if(!seenIntro()){
+    /* このパソコンで初めて開いた人に案内を出す。
+       ただし、まだ何も登録されていないときは、下の「ようこそ」に任せる */
+    var isNew = !d.settings.companyName && !d.employees.length;
+    if(!seenIntro() && !isNew){
       h += renderIntroCard();
     }
 
-    /* 会社名が未設定なら最初の案内 */
-    if(!d.settings.companyName && !d.employees.length){
+    if(isNew){
       h += '<div class="notice">'+
         '<b>ようこそ。</b> このアプリは、役割・目標・数字・報告のルールを1か所にまとめて、'+
         'チーム全員が同じ情報を見ながら会社を動かすための道具です。'+
         'まず <b>設定</b> で会社名を入れ、次に <b>社員・役割台帳</b> にメンバーを登録してください。'+
         '<div class="btn-row" style="margin-top:9px;">'+
-        '<button class="btn primary" data-act="go" data-view="settings">① 設定を開く</button>'+
-        '<button class="btn" data-act="go" data-view="employees">② 社員を登録する</button>'+
-        '<button class="btn" data-act="loadDemo">操作を試す（サンプルデータを入れる）</button>'+
-        '<a class="btn" href="'+GUIDE_URL+'" target="_blank" rel="noopener">使い方レクチャーを見る（動画・約16分）</a>'+
+        '<button class="btn primary" data-act="go" data-view="settings">'+ic('settings',14)+'① 設定を開く</button>'+
+        '<button class="btn" data-act="go" data-view="employees">'+ic('users',14)+'② メンバーを登録する</button>'+
+        '<button class="btn" data-act="loadDemo">'+ic('sparkle',14)+'操作を試す（サンプルデータを入れる）</button>'+
+        '<a class="btn" href="'+GUIDE_URL+'" target="_blank" rel="noopener">'+ic('play',14)+'使い方の動画を見る（約17分）</a>'+
         '</div></div>';
     }
 

@@ -1,5 +1,5 @@
 /* ============================================================
-   07-scorecards.js  職種別役割スコアカード
+   07-scorecards.js  職種別役割表
    ============================================================ */
 
 var SCORECARD_FIELDS = [
@@ -22,13 +22,13 @@ var SCORECARD_FIELDS = [
 ];
 
 VIEWS.scorecards = {
-  title:'職種別役割スコアカード',
+  title:'職種別役割表',
   desc:'Week 2〜3／シート3。職種を6〜8区分し、責任・KPI・権限・報告ルールを定義します。',
   render:function(){
     var d = DB.data;
     var h = '';
     h += '<div class="help-block">'+
-      '<b>役割スコアカードは「人」ではなく「職種」に対して作ります。</b> '+
+      '<b>役割表は「人」ではなく「職種」に対して作ります。</b> '+
       '担当者が代わっても会社の期待が変わらない状態にするためです。まず6〜8区分に分類し、それぞれ8項目を埋めてください。</div>';
 
     if(d.scorecards.length < 6)
@@ -98,7 +98,7 @@ action('scNew', function(){
 action('scEdit', function(ds){
   var s = byId(DB.data.scorecards, ds.id);
   if(!s) return;
-  openForm({ title:'役割スコアカード：'+s.jobType, wide:true, fields:SCORECARD_FIELDS, value:s,
+  openForm({ title:'役割表：'+s.jobType, wide:true, fields:SCORECARD_FIELDS, value:s,
     onSubmit:function(v){
       v.id = s.id;
       DB.data.scorecards[DB.data.scorecards.indexOf(s)] = v; DB.save(); render(); toast('保存しました','ok');
@@ -117,7 +117,7 @@ action('scDel', function(ds){
 
 action('scCreateDefaults', function(){
   confirmDialog('標準8職種の作成',
-    '標準のひな形から8職種（事業責任者・営業・マーケティング・顧客対応・開発・経理総務・管理職・経営幹部）の役割スコアカードを作成します。\n\n'+
+    '標準のひな形から8職種（事業責任者・営業・マーケティング・顧客対応・開発・経理総務・管理職・経営幹部）の役割表を作成します。\n\n'+
     '既に同じ職種名がある場合は追加しません。作成後、必ず自社の実態に合わせて修正してください。',
     function(){
       var existing = DB.data.scorecards.map(function(s){ return s.jobType; });
@@ -150,16 +150,16 @@ function scorecardPrintHtml(s){
 }
 action('scPrintOne', function(ds){
   var s = byId(DB.data.scorecards, ds.id);
-  printHtml(s.jobType+' 役割スコアカード',
-    '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割スコアカード</h2></div>'+
+  printHtml(s.jobType+' 役割表',
+    '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割表</h2></div>'+
     '<div class="card-body">'+scorecardPrintHtml(s)+'</div></div>');
 });
 action('scPrint', function(){
   var h = DB.data.scorecards.map(function(s){
-    return '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割スコアカード</h2></div>'+
+    return '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割表</h2></div>'+
            '<div class="card-body">'+scorecardPrintHtml(s)+'</div></div>';
   }).join('');
-  printHtml('職種別役割スコアカード', h || '<p>登録がありません。</p>');
+  printHtml('職種別役割表', h || '<p>登録がありません。</p>');
 });
 action('scCsv', function(){
   var rows = [['職種','役割の目的','主要責任','KPI','権限','要承認','必須報告','求める行動','上位等級との差','該当社員']];
