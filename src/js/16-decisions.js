@@ -170,7 +170,7 @@ function renderDecisionList(){
 
   return card('重大決裁', body, {
     sub:'怒り・焦り・不信が強いときは、決定ではなく論点整理までにする',
-    tools: btn('決裁を登録する','decNew',{},'primary')
+    tools: btn('決裁を登録する','decNew',{},'primary')+' '+btn('CSV','decCsv',{})
   });
 }
 
@@ -439,6 +439,25 @@ action('venSet', function(ds){
   rec.stage = ds.s; rec.decidedAt = nowIso();
   closeModal(); DB.save(); render();
   toast(ds.s==='approved' ? '着手を承認しました' : '見送りとして記録しました', 'ok');
+});
+
+action('decCsv', function(){
+  var rows = [['種別','件名','分類','持ち上がった日時','登録時の状態','冷却期間の遵守','段階',
+               '反対意見役','反対意見','今すぐ決めない損失','衝動的に決める損失','決めた内容','理由','見直し日']];
+  sortBy(DB.data.decisions, function(x){ return x.raisedAt||x.createdAt; }).forEach(function(r){
+    rows.push(['重大決裁', r.title, decisionKind(r.kind).label, fmtJp(r.raisedAt), emotionOf(r.emotion).label,
+      r.stage==='decided' ? (r.heldOk?'守って確定':'守らず確定') : '',
+      (DECISION_STAGES.filter(function(x){return x.key===(r.stage||'draft');})[0]||{}).label,
+      r.devilName, r.devilNote, r.lossNow, r.lossWait, r.decision, r.reason, r.review]);
+  });
+  var vrows = [['案件名','思いついた日時','記入率','目的','期待利益','必要資源','失敗条件','撤退条件','責任者','資源上限','状態','審査で出た意見','結果']];
+  sortBy(DB.data.ventures, function(x){ return x.raisedAt||x.createdAt; }).forEach(function(r){
+    vrows.push([r.title, fmtJp(r.raisedAt), ventureFill(r).rate+'%', r.purpose, r.gain, r.resource,
+      r.failCond, r.exitCond, r.ownerName, r.cap, r.stage||'draft', r.reviewNote, r.result]);
+  });
+  downloadCsv('重大決裁_'+todayStr()+'.csv', rows);
+  setTimeout(function(){ downloadCsv('新規案件の企画書_'+todayStr()+'.csv', vrows); }, 300);
+  toast('CSVを書き出しました','ok');
 });
 
 action('venDel', function(ds){

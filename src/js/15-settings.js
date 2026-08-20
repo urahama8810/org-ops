@@ -291,6 +291,10 @@ action('dataCsvAll', function(){
   setTimeout(function(){ ACTIONS.evalCsv(); }, 1200);
   setTimeout(function(){ ACTIONS.repCsv(); }, 1500);
   setTimeout(function(){ ACTIONS.impCsv(); }, 1800);
+  setTimeout(function(){ ACTIONS.dlgCsv(); }, 2100);
+  setTimeout(function(){ ACTIONS.decCsv(); }, 2400);
+  setTimeout(function(){ ACTIONS.parCsv(); }, 3000);
+  setTimeout(function(){ ACTIONS.capCsv(); }, 3300);
   setTimeout(function(){
     var rows = [['週','指標','目標','実績','差','状態','原因','対策','責任者','期限','完了日']];
     sortBy(DB.data.kpiWeeks, function(w){ return w.weekOf; }).forEach(function(w){
@@ -301,8 +305,8 @@ action('dataCsvAll', function(){
       });
     });
     downloadCsv('週次KPI_全期間_'+todayStr()+'.csv', rows);
-    toast('7種類のCSVを書き出しました','ok');
-  }, 2100);
+    toast('12種類のCSVを書き出しました','ok');
+  }, 3600);
 });
 
 /* ---------- サンプルデータ ---------- */

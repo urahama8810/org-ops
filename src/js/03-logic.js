@@ -305,7 +305,8 @@ function buildAlerts(){
   });
   if(overdue.length)
     add('bad','期限を過ぎた対策が'+overdue.length+'件',
-        overdue.slice(0,3).map(function(o){return o.ind+'（'+(o.owner||'担当未定')+'・'+o.due+'）';}).join(' / '),'kpi',overdue.length);
+        overdue.slice(0,3).map(function(o){
+          return o.ind+'（'+(o.owner?empName(o.owner):'担当未定')+'・'+o.due+'）'; }).join(' / '),'kpi',overdue.length);
 
   /* --- 1on1（第9章） --- */
   var oo = oneOnOneRate();

@@ -322,6 +322,12 @@ legend{font-size:12px;font-weight:700;color:var(--accent);padding:0 6px;}
 /* ---------- 印刷 ---------- */
 @media print{
   #sidebar,.topbar,.no-print,#toasts{display:none !important;}
+  /* 紙の幅に合わせて列を減らし、余白で伸ばさない */
+  .grid.c2,.grid.c21{grid-template-columns:1fr;}
+  .grid.c3,.grid.c4{grid-template-columns:1fr 1fr;}
+  .grid > .col > .card:last-child:not(:first-child){flex:none;}
+  .grid > .card,.grid > .tile{height:auto;}
+  .section-title{margin:14px 0 8px;break-after:avoid;page-break-after:avoid;}
   body{background:#fff;font-size:11.5px;}
   #view{padding:0;max-width:none;}
   .card{box-shadow:none;border-color:#999;break-inside:avoid;page-break-inside:avoid;margin-bottom:12px;}

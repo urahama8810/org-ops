@@ -120,7 +120,7 @@ VIEWS.delegation = {
 
     h += card('委任カード一覧', body, {
       sub:'任せた後に問題が起きたときは、本人だけでなく「任せ方の設計」も検証します',
-      tools: btn('仕事を任せる（カードを作る）','dlgNew',{},'primary')
+      tools: btn('仕事を任せる（カードを作る）','dlgNew',{},'primary')+' '+btn('CSV','dlgCsv',{})
     });
 
     /* 6項目の説明 */

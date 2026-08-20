@@ -205,7 +205,7 @@ function renderPartners(){
   ], sortBy(DB.data.partners, function(p){ return p.nextCheck||'9999'; }), {
     emptyTitle:'関係者が登録されていません',
     emptyText:'スポンサー・共同事業者・役員・外注先など、会社の外にいて利害を持つ相手を登録します。'
-  }), { tools: btn('関係者を追加','parNew',{},'primary') });
+  }), { tools: btn('関係者を追加','parNew',{},'primary')+' '+btn('CSV','parCsv',{}) });
 
   return h;
 }
@@ -369,6 +369,17 @@ action('parCheck', function(ds){
     }
   });
 });
+action('parCsv', function(){
+  var rows = [['相手','区分','窓口','開始日','相手の利害','権限','責任と成果物','知的財産','金銭条件',
+               '撤退・解除の条件','確認の頻度','契約の文書化','保管場所','前回確認','次回確認','メモ']];
+  sortBy(DB.data.partners, function(p){ return p.name; }).forEach(function(p){
+    rows.push([p.name, p.kind, p.contact, p.startDate, p.interest, p.authority, p.duty, p.ip, p.money,
+      p.exitCond, p.checkCycle, p.contractDone?'あり':'なし', p.contractPlace, p.lastCheck, p.nextCheck, p.note]);
+  });
+  downloadCsv('関係者台帳_'+todayStr()+'.csv', rows);
+  toast('CSVを書き出しました','ok');
+});
+
 action('parDel', function(ds){
   confirmDialog('削除','この関係者の記録を削除します。よろしいですか？', function(){
     DB.data.partners = DB.data.partners.filter(function(x){ return x.id!==ds.id; });

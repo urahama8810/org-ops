@@ -357,6 +357,13 @@ t('再投資率と非事業支出が集計される', ()=>{
   if(s.rate === null || s.rate < 0) throw new Error('再投資率='+s.rate);
   if(!(s.nonbiz >= 0)) throw new Error('非事業支出='+s.nonbiz);
 });
+t('アラートの文面に内部IDが混ざらない', ()=>{
+  ctx.buildAlerts().forEach(a=>{
+    const s = (a.title||'') + ' ' + (a.detail||'');
+    const m = s.match(/[a-z]{2,4}_[a-z0-9]{6,}_[a-z0-9]{3,}/);
+    if(m) throw new Error('内部IDがそのまま出ている: ' + m[0] + '\n       文面: ' + s);
+  });
+});
 t('新しいアラートが検出される', ()=>{
   const titles = ctx.buildAlerts().map(a=>a.title).join('｜');
   ['中間確認日が未設定','反対意見の確認','契約・合意が文書化されていない','離職リスクが高い'].forEach(k=>{
