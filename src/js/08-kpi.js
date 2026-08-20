@@ -87,10 +87,12 @@ VIEWS.kpi = {
           var over = !r.doneAt && r.due < todayStr();
           return '<span class="'+(over?'badge bad':'small')+'">'+esc(r.due)+'</span>'+
                  (r.doneAt?'<div class="small" style="color:var(--ok);">完了</div>':''); } },
-      { label:'', cls:'actions', width:'130px', render:function(r){
+      { label:'', cls:'actions', width:'190px', render:function(r){
+          /* 「削除」は押し間違えると入力内容ごと消えるので、少し離して置く */
           return btn('入力','kpiRowEdit',{w:w.id,r:r.id})+' '+
-                 (r.doneAt?btn('完了解除','kpiRowUndone',{w:w.id,r:r.id}):btn('対策完了','kpiRowDone',{w:w.id,r:r.id}))+' '+
-                 btn('×','kpiRowDel',{w:w.id,r:r.id},'danger'); } }
+                 (r.doneAt?btn('完了解除','kpiRowUndone',{w:w.id,r:r.id}):btn('対策完了','kpiRowDone',{w:w.id,r:r.id}))+
+                 '<span class="sep-x"></span>'+
+                 btn('削除','kpiRowDel',{w:w.id,r:r.id},'danger'); } }
     ];
     h += card(w.weekOf+' の週　KPI表', tableHtml(cols, w.rows, {
         emptyTitle:'指標が登録されていません',
@@ -175,8 +177,7 @@ function importGoalRows(){
 }
 
 action('kpiImport', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  if(!w) return;
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   var d = DB.data;
   var candidates = [];
   d.goals.forEach(function(g){
@@ -221,7 +222,7 @@ action('kpiImport', function(ds){
 });
 
 action('kpiCopyPrev', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   var sorted = sortBy(DB.data.kpiWeeks, function(x){ return x.weekOf; });
   var idx = sorted.indexOf(w);
   if(idx <= 0){ toast('前週の記録がありません','bad'); return; }
@@ -256,13 +257,13 @@ function kpiRowFields(){
   ];
 }
 action('kpiRowNew', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   openForm({ title:'指標を追加', wide:true, fields:kpiRowFields(), value:{target:'',actual:''},
     onSubmit:function(v){ v.id = uid('row'); w.rows.push(v); DB.save(); render(); toast('追加しました','ok'); } });
 });
 action('kpiRowEdit', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   var st = kpiRowStatus(r);
   openForm({ title:'指標の入力：'+r.indicator, wide:true, fields:kpiRowFields(), value:r,
     intro: (st==='ng'||st==='watch') ?
@@ -274,8 +275,8 @@ action('kpiRowEdit', function(ds){
     } });
 });
 action('kpiRowDel', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   confirmDialog('この指標を表から外す',
     '「'+(r?r.indicator:'')+'」をこの週の表から外します。\n入力済みの原因・対策・担当者・期限も一緒に消えます。',
     function(){
@@ -284,18 +285,18 @@ action('kpiRowDel', function(ds){
     }, '外す');
 });
 action('kpiRowDone', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   r.doneAt = todayStr(); DB.save(); render(); toast('対策を完了にしました','ok');
 });
 action('kpiRowUndone', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   r.doneAt = ''; DB.save(); render();
 });
 action('kpiActual', function(ds, el){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   r.actual = el.value === '' ? '' : num(el.value);
   DB.save();
   /* 画面全体を描き直すと入力中の欄から離れてしまうので、その行だけ書き換える */
@@ -317,7 +318,7 @@ action('kpiActual', function(ds, el){
 action('kpiSelWeek', function(ds, el){ kpiSel.weekId = el.value; render(); });
 
 action('kpiMinutes', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   openForm({ title:'議事記録：'+w.weekOf+' の週', wide:true,
     fields:[
       { key:'attendees', label:'出席者', full:true },
@@ -338,8 +339,7 @@ action('kpiMinutes', function(ds){
 /* ---------- 会議モード（45分タイマー） ---------- */
 var meetingTimer = null;
 action('kpiMeetingMode', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  if(!w) return;
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   var stepIndex = 0, elapsed = 0, running = false;
 
   function stepHtml(){
@@ -444,8 +444,8 @@ action('kpiMeetingMode', function(ds){
 });
 action('kpiMeetRowEdit', function(ds){
   /* 会議モード中の行編集：保存後に会議モードを描き直す */
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   var top = _modalStack[_modalStack.length-1];
   openForm({ title:'原因・対策の入力：'+r.indicator, wide:true, fields:kpiRowFields(), value:r,
     intro:'<b>その場で決めます。</b>対策・責任者・期限のいずれかが空欄のまま会議を終えないでください。',
@@ -459,7 +459,7 @@ action('kpiMeetRowEdit', function(ds){
 
 /* ---------- 出力 ---------- */
 action('kpiCsv', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.id);
+  var w = byId(DB.data.kpiWeeks, ds.id); if(!w) return;
   var rows = [['週','指標','目標','実績','差','状態','原因','対策','責任者','期限','完了日']];
   w.rows.forEach(function(r){
     var st = kpiRowStatus(r);
@@ -472,7 +472,7 @@ action('kpiCsv', function(ds){
 });
 
 action('kpiPrint', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.id);
+  var w = byId(DB.data.kpiWeeks, ds.id); if(!w) return;
   var cols = [
     {label:'指標', render:function(r){ return esc(r.indicator); }},
     {label:'目標', cls:'num', render:function(r){ return esc(r.target); }},

@@ -805,6 +805,11 @@ legend{font-size:var(--fs-sm);font-weight:700;color:var(--text-2);padding:0 var(
   .modal-foot{display:none;}
   .badge,.alert,.progress > span{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   details.help{display:none;}
+  /* 画面の操作のためだけの部品は、紙には出さない */
+  .intro-card,.pick-grid,.pick-dept,.tabs,.search-box{display:none !important;}
+  td.actions,th.actions,.card-head .btn,.card-head a.btn,.tile .foot{display:none !important;}
+  .me-head{border:1px solid #999;border-radius:0;box-shadow:none;}
+  .me-avatar{background:#ddd !important;color:#000;}
   a[href]:after{content:'';}
 }
 
@@ -917,3 +922,6 @@ table.tbl td.actions .btn.danger:hover{
   .pick-grid{grid-template-columns:repeat(auto-fill,minmax(92px,1fr));}
   .topbar{padding:8px var(--sp-3);}
 }
+
+/* 「削除」など、押し間違えたくないボタンを少し離すための余白 */
+.sep-x{display:inline-block;width:14px;}

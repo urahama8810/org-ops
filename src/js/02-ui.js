@@ -299,17 +299,33 @@ function printHtml(title, bodyHtml){
 }
 
 /* ---------- イベント委譲 ---------- */
+/* 操作を実行する。
+   共有で使っていると、他の人が消した記録のボタンが画面に残っていることがある。
+   そのまま押しても何も起きないと戸惑うので、理由を伝えて画面を作り直す。 */
+function runAction(fn, name, ds, el, ev){
+  try{
+    fn(ds, el, ev);
+  }catch(err){
+    if(typeof console !== 'undefined' && console.error) console.error(name, err);
+    closeAllModals();
+    toast('この操作はできませんでした。表示が古い可能性があるため、画面を作り直します。','bad');
+    try{ render(); }catch(e2){}
+  }
+}
+
 document.addEventListener('click', function(e){
   var t = e.target.closest('[data-act]');
   if(!t) return;
-  var fn = ACTIONS[t.getAttribute('data-act')];
+  var name = t.getAttribute('data-act');
+  var fn = ACTIONS[name];
   if(!fn) return;
   e.preventDefault();
-  fn(t.dataset, t, e);
+  runAction(fn, name, t.dataset, t, e);
 });
 document.addEventListener('change', function(e){
   var t = e.target.closest('[data-change]');
   if(!t) return;
-  var fn = ACTIONS[t.getAttribute('data-change')];
-  if(fn) fn(t.dataset, t, e);
+  var name = t.getAttribute('data-change');
+  var fn = ACTIONS[name];
+  if(fn) runAction(fn, name, t.dataset, t, e);
 });

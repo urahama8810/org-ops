@@ -113,7 +113,7 @@ VIEWS.evaluations = {
           var next = idx < EVAL_STAGES.length-1 ? EVAL_STAGES[idx+1] : null;
           return btn('評価シート','evalOpen',{id:ev.id},'primary')+' '+
                  (next?btn(next.label+'へ','evalNext',{id:ev.id}):'')+' '+
-                 btn('×','evalDel',{id:ev.id},'danger'); } }
+                 '<span class="sep-x"></span>'+btn('削除','evalDel',{id:ev.id},'danger'); } }
     ];
     h += card(period+' の評価（'+evs.length+'名）', tableHtml(cols, rows, {}), {tight:true,
       sub:'自己評価 → 直属上司評価 → 管理職間で調整 → 確定 → 本人説明'});
@@ -167,7 +167,7 @@ action('evalCreateAll', function(){
 });
 
 action('evalDel', function(ds){
-  var ev = byId(DB.data.evaluations, ds.id);
+  var ev = byId(DB.data.evaluations, ds.id); if(!ev) return;
   confirmDialog('評価シートの削除', empName(ev.employeeId)+'さんの'+ev.period+'の評価を削除します。よろしいですか？', function(){
     DB.data.evaluations = DB.data.evaluations.filter(function(x){ return x.id !== ev.id; });
     DB.save(); render(); toast('削除しました','ok');
@@ -175,7 +175,7 @@ action('evalDel', function(ds){
 });
 
 action('evalNext', function(ds){
-  var ev = byId(DB.data.evaluations, ds.id);
+  var ev = byId(DB.data.evaluations, ds.id); if(!ev) return;
   var idx = evalStageIndex(ev);
   if(idx >= EVAL_STAGES.length-1) return;
   var next = EVAL_STAGES[idx+1];
@@ -198,8 +198,7 @@ action('evalNext', function(ds){
 
 /* ---------- 評価シート ---------- */
 action('evalOpen', function(ds){
-  var ev = byId(DB.data.evaluations, ds.id);
-  if(!ev) return;
+  var ev = byId(DB.data.evaluations, ds.id); if(!ev) return;
   var emp = byId(DB.data.employees, ev.employeeId);
   var items = evalItemsFor(ev.type);
 
@@ -327,7 +326,7 @@ action('evalOpen', function(ds){
 });
 
 action('evalPrint', function(ds){
-  var ev = byId(DB.data.evaluations, ds.id);
+  var ev = byId(DB.data.evaluations, ds.id); if(!ev) return;
   var items = evalItemsFor(ev.type);
   var score = evalScore(ev), self = evalSelfScore(ev);
   var rows = items.map(function(it){

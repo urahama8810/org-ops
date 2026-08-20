@@ -75,7 +75,7 @@ VIEWS.improvement = {
           return badge(c.judge==='ok'?'改善している':c.judge==='ng'?'改善していない':'一部改善',
                        c.judge==='ok'?'ok':c.judge==='ng'?'bad':'warn'); }},
         {label:'', cls:'actions', width:'50px', render:function(c, i){
-          return btn('×','impCheckDel',{id:p.id,i:i},'danger'); }}
+          return btn('削除','impCheckDel',{id:p.id,i:i},'danger'); }}
       ], checks, {emptyTitle:'週次の確認記録がありません', emptyText:'毎週、事実で確認して記録します。'});
 
       if(p.status === 'closed'){
@@ -145,11 +145,11 @@ function openImpForm(rec, empId){
   });
 }
 action('impEdit', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   openImpForm(p, p.employeeId);
 });
 action('impCheckNew', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   openForm({ title:'週次確認の記録',
     fields:[
       { key:'date', label:'確認日', type:'date', required:true },
@@ -168,14 +168,14 @@ action('impCheckNew', function(ds){
     } });
 });
 action('impCheckDel', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   confirmDialog('この週の記録を削除する',
     'この週の確認記録を削除します。よろしいですか？',
     function(){ p.weeklyChecks.splice(num(ds.i),1); DB.save(); render(); toast('削除しました','ok'); },
     '削除する');
 });
 action('impClose', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   openForm({ title:'改善計画の終了', wide:true,
     fields:[
       { key:'result', label:'結果', type:'textarea', rows:4, full:true, required:true,
@@ -194,14 +194,14 @@ action('impClose', function(ds){
     } });
 });
 action('impDel', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   confirmDialog('改善計画の削除', empName(p.employeeId)+'さんの改善計画を削除します。よろしいですか？', function(){
     DB.data.improvementPlans = DB.data.improvementPlans.filter(function(x){ return x.id!==p.id; });
     DB.save(); render(); toast('削除しました','ok');
   }, '削除する');
 });
 action('impPrint', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   printHtml('改善計画 '+empName(p.employeeId),
     '<div class="card"><div class="card-head"><h2>改善計画　'+esc(empName(p.employeeId))+'</h2>'+
     '<span class="sub">'+esc(p.startDate)+' 〜 '+esc(p.endDate)+'</span></div><div class="card-body"><dl class="kv">'+

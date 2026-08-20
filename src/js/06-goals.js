@@ -140,8 +140,7 @@ action('goalNew', function(ds){
 });
 
 action('goalEdit', function(ds){
-  var g = byId(DB.data.goals, ds.id);
-  if(!g) return;
+  var g = byId(DB.data.goals, ds.id); if(!g) return;
   var fields = goalFields();
   var comp = DB.data.goals.filter(function(x){ return x.level==='company' && x.id!==g.id; });
   if(comp.length) fields.splice(2,0,{ key:'parentId', label:'紐づく会社目標', type:'select',
@@ -156,8 +155,7 @@ action('goalEdit', function(ds){
 });
 
 action('goalUpdate', function(ds){
-  var g = byId(DB.data.goals, ds.id);
-  if(!g) return;
+  var g = byId(DB.data.goals, ds.id); if(!g) return;
   openForm({
     title:'実績の更新：'+g.title, submitLabel:'更新',
     fields:[
@@ -177,8 +175,7 @@ action('goalUpdate', function(ds){
 });
 
 action('goalDel', function(ds){
-  var g = byId(DB.data.goals, ds.id);
-  if(!g) return;
+  var g = byId(DB.data.goals, ds.id); if(!g) return;
   confirmDialog('目標の削除','「'+g.title+'」を削除します。よろしいですか？', function(){
     DB.data.goals = DB.data.goals.filter(function(x){ return x.id !== g.id; });
     DB.data.goals.forEach(function(x){ if(x.parentId === g.id) x.parentId = ''; });

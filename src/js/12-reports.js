@@ -134,7 +134,7 @@ function renderReportLog(needApproval){
         var s = reportDeadlineStatus(r); return badge(s.label, s.cls); } },
     { label:'', cls:'actions', width:'170px', render:function(r){
         return (r.status!=='approved'?btn('承認','repApprove',{id:r.id},'primary')+' ':'')+
-               btn('編集','repEdit',{id:r.id})+' '+btn('×','repDel',{id:r.id},'danger'); } }
+               btn('編集','repEdit',{id:r.id})+'<span class="sep-x"></span>'+btn('削除','repDel',{id:r.id},'danger'); } }
   ] : [
     { label:'件名', render:function(r){ return '<b>'+esc(r.title)+'</b><div class="small muted">'+esc(r.detail||'').slice(0,70)+'</div>'; } },
     { label:'種類', width:'150px', render:function(r){
@@ -147,7 +147,7 @@ function renderReportLog(needApproval){
     { label:'判定', width:'160px', render:function(r){
         var s = reportDeadlineStatus(r); return badge(s.label, s.cls); } },
     { label:'', cls:'actions', width:'130px', render:function(r){
-        return btn('編集','repEdit',{id:r.id})+' '+btn('×','repDel',{id:r.id},'danger'); } }
+        return btn('編集','repEdit',{id:r.id})+'<span class="sep-x"></span>'+btn('削除','repDel',{id:r.id},'danger'); } }
   ];
 
   h += card(needApproval?'承認申請':'報告ログ', tableHtml(cols, list, {
@@ -179,7 +179,7 @@ action('repNewApproval', function(){
     } });
 });
 action('repEdit', function(ds){
-  var r = byId(DB.data.reports, ds.id);
+  var r = byId(DB.data.reports, ds.id); if(!r) return;
   openForm({ title:'記録の編集', wide:true, fields:reportFields(!!r.needApproval), value:r,
     onSubmit:function(v){
       v.id = r.id; v.needApproval = r.needApproval;
@@ -187,7 +187,7 @@ action('repEdit', function(ds){
     } });
 });
 action('repApprove', function(ds){
-  var r = byId(DB.data.reports, ds.id);
+  var r = byId(DB.data.reports, ds.id); if(!r) return;
   openForm({ title:'承認：'+r.title,
     fields:[
       { key:'status', label:'判定', type:'select', required:true, options:[
@@ -208,7 +208,7 @@ action('repApprove', function(ds){
     } });
 });
 action('repDel', function(ds){
-  var r = byId(DB.data.reports, ds.id);
+  var r = byId(DB.data.reports, ds.id); if(!r) return;
   confirmDialog('記録の削除','「'+r.title+'」を削除します。よろしいですか？', function(){
     DB.data.reports = DB.data.reports.filter(function(x){ return x.id !== r.id; });
     DB.save(); render(); toast('削除しました','ok');
@@ -279,16 +279,16 @@ action('incNew', function(){
     onSubmit:function(v){ v.id = uid('inc'); DB.data.incidents.push(v); DB.save(); render(); toast('記録しました','ok'); } });
 });
 action('incEdit', function(ds){
-  var i = byId(DB.data.incidents, ds.id);
+  var i = byId(DB.data.incidents, ds.id); if(!i) return;
   openForm({ title:'問題処理の編集', wide:true, fields:incidentFields(), value:i,
     onSubmit:function(v){ v.id=i.id; v.doneAt=i.doneAt; DB.data.incidents[DB.data.incidents.indexOf(i)]=v; DB.save(); render(); toast('保存しました','ok'); } });
 });
 action('incDone', function(ds){
-  var i = byId(DB.data.incidents, ds.id);
+  var i = byId(DB.data.incidents, ds.id); if(!i) return;
   i.doneAt = todayStr(); DB.save(); render(); toast('完了にしました','ok');
 });
 action('incDel', function(ds){
-  var i = byId(DB.data.incidents, ds.id);
+  var i = byId(DB.data.incidents, ds.id); if(!i) return;
   confirmDialog('記録の削除','「'+i.title+'」を削除します。よろしいですか？', function(){
     DB.data.incidents = DB.data.incidents.filter(function(x){ return x.id!==i.id; });
     DB.save(); render(); toast('削除しました','ok');
@@ -324,7 +324,7 @@ function renderExceptions(){
       if(!x.reviewDate) return badge('未設定','bad');
       return x.reviewDate < todayStr() ? badge(x.reviewDate+' 超過','bad') : esc(x.reviewDate); }},
     {label:'', cls:'actions', width:'130px', render:function(x){
-      return btn('編集','excEdit',{id:x.id})+' '+btn('×','excDel',{id:x.id},'danger'); }}
+      return btn('編集','excEdit',{id:x.id})+'<span class="sep-x"></span>'+btn('削除','excDel',{id:x.id},'danger'); }}
   ], list, {emptyTitle:'例外の記録はありません', emptyText:'ルールの例外を認めたら、必ずここに記録します。'}),
   {tight:true});
   return h;
@@ -344,12 +344,12 @@ action('excNew', function(){
     onSubmit:function(v){ v.id=uid('exc'); DB.data.exceptions.push(v); DB.save(); render(); toast('記録しました','ok'); } });
 });
 action('excEdit', function(ds){
-  var x = byId(DB.data.exceptions, ds.id);
+  var x = byId(DB.data.exceptions, ds.id); if(!x) return;
   openForm({ title:'例外の編集', wide:true, fields:EXC_FIELDS, value:x,
     onSubmit:function(v){ v.id=x.id; DB.data.exceptions[DB.data.exceptions.indexOf(x)]=v; DB.save(); render(); toast('保存しました','ok'); } });
 });
 action('excDel', function(ds){
-  var x = byId(DB.data.exceptions, ds.id);
+  var x = byId(DB.data.exceptions, ds.id); if(!x) return;
   confirmDialog('例外記録の削除','「'+x.title+'」を削除します。よろしいですか？', function(){
     DB.data.exceptions = DB.data.exceptions.filter(function(y){ return y.id!==x.id; });
     DB.save(); render(); toast('削除しました','ok');

@@ -195,24 +195,24 @@ function openOooForm(rec, empId){
 }
 
 action('oooEdit', function(ds){
-  var r = byId(DB.data.oneOnOnes, ds.id);
+  var r = byId(DB.data.oneOnOnes, ds.id); if(!r) return;
   if(r) openOooForm(r, r.employeeId);
 });
 action('oooDel', function(ds){
-  var r = byId(DB.data.oneOnOnes, ds.id);
+  var r = byId(DB.data.oneOnOnes, ds.id); if(!r) return;
   confirmDialog('1on1記録の削除', empName(r.employeeId)+'さんの'+r.month+'の記録を削除します。よろしいですか？', function(){
     DB.data.oneOnOnes = DB.data.oneOnOnes.filter(function(x){ return x.id !== r.id; });
     DB.save(); render(); toast('削除しました','ok');
   }, '削除する');
 });
 action('oooPromise', function(ds, el){
-  var r = byId(DB.data.oneOnOnes, ds.id);
+  var r = byId(DB.data.oneOnOnes, ds.id); if(!r) return;
   r.promises[num(ds.i)].done = el.checked;
   DB.save(); render();
 });
 
 action('oooHistory', function(ds){
-  var e = byId(DB.data.employees, ds.emp);
+  var e = byId(DB.data.employees, ds.emp); if(!e) return;
   var recs = sortBy(DB.data.oneOnOnes.filter(function(o){ return o.employeeId === e.id; }), function(o){ return o.month; }).reverse();
   var body = recs.length ? recs.map(function(o){ return oooDetailHtml(o); }).join('<div class="sep"></div>') :
     '<div class="empty"><div class="big">記録がありません</div></div>';
@@ -222,7 +222,7 @@ action('oooHistory', function(ds){
          '<button class="btn" data-modal-close>閉じる</button>' });
 });
 action('oooHistPrint', function(ds){
-  var e = byId(DB.data.employees, ds.emp);
+  var e = byId(DB.data.employees, ds.emp); if(!e) return;
   var recs = sortBy(DB.data.oneOnOnes.filter(function(o){ return o.employeeId === e.id; }), function(o){ return o.month; }).reverse();
   printHtml(e.name+' 1on1履歴',
     '<div class="card"><div class="card-head"><h2>'+esc(e.name)+'　1on1履歴</h2></div><div class="card-body">'+
@@ -243,7 +243,7 @@ function oooDetailHtml(o){
 }
 
 action('oooPrint', function(ds){
-  var o = byId(DB.data.oneOnOnes, ds.id);
+  var o = byId(DB.data.oneOnOnes, ds.id); if(!o) return;
   printHtml('1on1記録 '+empName(o.employeeId)+' '+o.month,
     '<div class="card"><div class="card-head"><h2>1on1記録　'+esc(empName(o.employeeId))+'</h2></div>'+
     '<div class="card-body">'+oooDetailHtml(o)+'</div></div>');

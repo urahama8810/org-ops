@@ -96,8 +96,7 @@ action('scNew', function(){
 });
 
 action('scEdit', function(ds){
-  var s = byId(DB.data.scorecards, ds.id);
-  if(!s) return;
+  var s = byId(DB.data.scorecards, ds.id); if(!s) return;
   openForm({ title:'役割表：'+s.jobType, wide:true, fields:SCORECARD_FIELDS, value:s,
     onSubmit:function(v){
       v.id = s.id;
@@ -107,8 +106,7 @@ action('scEdit', function(ds){
 });
 
 action('scDel', function(ds){
-  var s = byId(DB.data.scorecards, ds.id);
-  if(!s) return;
+  var s = byId(DB.data.scorecards, ds.id); if(!s) return;
   confirmDialog('職種の削除','「'+s.jobType+'」を削除します。よろしいですか？', function(){
     DB.data.scorecards = DB.data.scorecards.filter(function(x){ return x.id !== s.id; });
     DB.save(); render(); toast('削除しました','ok');
@@ -149,7 +147,7 @@ function scorecardPrintHtml(s){
     '</dl>';
 }
 action('scPrintOne', function(ds){
-  var s = byId(DB.data.scorecards, ds.id);
+  var s = byId(DB.data.scorecards, ds.id); if(!s) return;
   printHtml(s.jobType+' 役割表',
     '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割表</h2></div>'+
     '<div class="card-body">'+scorecardPrintHtml(s)+'</div></div>');

@@ -413,7 +413,8 @@ function lines(s){
 function pct(n){ return (isFinite(n)?Math.round(n):0)+'%'; }
 function clamp(n,a,b){ return Math.max(a,Math.min(b,n)); }
 function num(v,def){ var n = parseFloat(v); return isFinite(n) ? n : (def===undefined?0:def); }
-function byId(arr,id){ for(var i=0;i<arr.length;i++) if(arr[i].id===id) return arr[i]; return null; }
+/* 一覧からIDで1件を取り出す。見つからない場合と、一覧そのものがない場合は null を返す */
+function byId(arr,id){ if(!arr || !arr.length) return null; for(var i=0;i<arr.length;i++) if(arr[i] && arr[i].id===id) return arr[i]; return null; }
 function sortBy(arr,fn){ return arr.slice().sort(function(a,b){ var x=fn(a),y=fn(b); return x<y?-1:x>y?1:0; }); }
 function uniq(arr){ var o=[],s={}; arr.forEach(function(v){ if(v && !s[v]){s[v]=1;o.push(v);} }); return o; }
 

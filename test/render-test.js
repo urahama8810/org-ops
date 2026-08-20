@@ -438,6 +438,74 @@ t('わたしの画面：自分を選ぶと、自分の情報だけが出る', ()
   if(other && html.indexOf('<b>'+other.name+'</b>') >= 0) throw new Error('他の人の情報が混ざっている');
   ctx.setMyEmpId('');
 });
+t('存在しない記録を指すボタンを押しても落ちない', ()=>{
+  /* 共有で使っていると、他の人が消した記録のボタンが画面に残っていることがある。
+     そのとき押しても、例外で止まらないこと。 */
+  ctx.buildDemoData();
+  const bad = [];
+  Object.keys(ACTIONS).forEach(k=>{
+    [{}, {id:'ありえないID'}, {w:'x', r:'y'}, {code:'ありえない等級'}].forEach(ds=>{
+      try{ ACTIONS[k](ds, mkNode('button'), {preventDefault(){}}); }
+      catch(e){ if(!bad.some(b=>b.startsWith(k+' '))) bad.push(k+' → '+e.message); }
+    });
+  });
+  if(bad.length) throw new Error(bad.length+'個の操作が落ちる: '+bad.slice(0,6).join(' / '));
+});
+t('画面に undefined や NaN が出ない', ()=>{
+  const states = [
+    ['何もない', ()=>{ DB.data = ctx.emptyData(); ctx.setMyEmpId(''); }],
+    ['サンプル', ()=>{ ctx.buildDemoData(); }],
+    ['社員1名だけ', ()=>{ DB.data = ctx.emptyData(); DB.data.employees.push({id:'emp_x', name:'テスト太郎'}); }]
+  ];
+  const bad = [];
+  states.forEach(([label, setup])=>{
+    setup();
+    Object.keys(VIEWS).forEach(k=>{
+      if(!VIEWS[k] || typeof VIEWS[k].render !== 'function') return;
+      let h;
+      try{ h = VIEWS[k].render(); }catch(e){ bad.push(label+'/'+k+'（例外: '+e.message+'）'); return; }
+      if(typeof h !== 'string'){ bad.push(label+'/'+k+'（文字列でない）'); return; }
+      ['undefined','NaN','[object Object]'].forEach(w=>{
+        if(h.indexOf(w) >= 0) bad.push(label+'/'+k+'（'+w+' が出ている）');
+      });
+    });
+  });
+  if(bad.length) throw new Error(bad.slice(0,6).join(' / '));
+});
+t('わたしの画面：選んだ人がいなくなっても落ちない', ()=>{
+  ctx.buildDemoData();
+  const emp = DB.data.employees[0];
+  ctx.setMyEmpId(emp.id);
+  DB.data.employees = DB.data.employees.filter(e=>e.id !== emp.id);
+  const h = VIEWS.me.render();
+  if(typeof h !== 'string' || !h.length) throw new Error('描画できない');
+  if(typeof ctx.navCount('me') !== 'number') throw new Error('navCount が数値でない');
+  ctx.setMyEmpId('');
+});
+t('消したタブを指定されても画面が空にならない', ()=>{
+  ctx.buildDemoData();
+  [['decisions','rule'], ['diagnosis','structure']].forEach(([v, tab])=>{
+    if(VIEWS[v].setTab) VIEWS[v].setTab(tab);
+    const h = VIEWS[v].render();
+    if(!h || h.length < 200) throw new Error(v+' に「'+tab+'」を指定すると中身が消える');
+  });
+});
+t('古い形式のデータでも、消したはずの項目が表に出ない', ()=>{
+  const old = {
+    meta:{ version:'2.0.0', updatedAt:new Date().toISOString() },
+    settings:{ companyName:'旧データ社' },
+    employees:[{ id:'emp_1', name:'旧 太郎', salary:'月給30万円', retentionRisk:'高い' }],
+    decisions:[{ id:'dec_1', title:'旧い決定', kind:'people', emotion:2, stage:'holding' }],
+    goals:[], scorecards:[], kpiWeeks:[], oneOnOnes:[], evaluations:[], grades:[],
+    reports:[], incidents:[], improvementPlans:[], planChecks:{}, firstSteps:{}
+  };
+  store['hyokaSeido_v1'] = JSON.stringify(old);
+  DB.load();
+  const emp = VIEWS.employees.render();
+  if(emp.indexOf('月給30万円') >= 0) throw new Error('給与が画面に出てしまう');
+  const dec = VIEWS.decisions.render();
+  if(/強い怒り|今すぐ決めてしまいたい/.test(dec)) throw new Error('心理状態が画面に出てしまう');
+});
 t('全ナビ項目に対応する画面がある', ()=>{
   ctx.NAV.forEach(g=>g.items.forEach(it=>{
     if(!VIEWS[it.key]) throw new Error('画面が存在しない: '+it.key);

@@ -105,7 +105,7 @@ function promotionSummary(e){
 }
 
 action('gradeSet', function(ds, el){
-  var e = byId(DB.data.employees, ds.id);
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   var from = e.grade || '';
   e.grade = el.value;
   if(from !== e.grade){
@@ -116,13 +116,14 @@ action('gradeSet', function(ds, el){
 });
 
 action('gradeCourse', function(ds){
-  var e = byId(DB.data.employees, ds.id);
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   e.course = ds.course; DB.save(); render();
   toast(e.name+'さんを'+(ds.course==='expert'?'専門職':'管理職')+'コースにしました','ok');
 });
 
 action('gradeEdit', function(ds){
   var g = DB.data.grades.filter(function(x){ return x.code === ds.code; })[0];
+  if(!g) return;
   openForm({
     title:'等級の定義：'+g.code, wide:true,
     fields:[
@@ -147,7 +148,7 @@ action('gradeReset', function(){
 });
 
 action('gradePromote', function(ds){
-  var e = byId(DB.data.employees, ds.id);
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   var d = DB.data;
   var idx = d.grades.map(function(g){ return g.code; }).indexOf(e.grade);
   var next = idx >= 0 && idx < d.grades.length-1 ? d.grades[idx+1] : (idx<0 ? d.grades[0] : null);

@@ -177,8 +177,7 @@ action('empNew', function(){
 });
 
 action('empEdit', function(ds){
-  var e = byId(DB.data.employees, ds.id);
-  if(!e) return;
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   openForm({
     title:'社員の編集：'+e.name, wide:true, fields:employeeFields(), value:e,
     headNote:'記入率 '+ledgerStatus(e).rate+'%',
@@ -192,8 +191,7 @@ action('empEdit', function(ds){
 });
 
 action('empDel', function(ds){
-  var e = byId(DB.data.employees, ds.id);
-  if(!e) return;
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   var reports = directReports(e.id);
   var warn = reports.length ? '\n\n※ この社員を上司としている部下が'+reports.length+'名います（'+
              reports.map(function(x){return x.name;}).join('、')+'）。削除すると直属上司が未確定になります。' : '';
@@ -206,8 +204,7 @@ action('empDel', function(ds){
 });
 
 action('empView', function(ds){
-  var e = byId(DB.data.employees, ds.id);
-  if(!e) return;
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   openModal({
     title:e.name+'　役割シート', wide:true,
     headNote:(e.dept||'')+(e.grade?' / '+e.grade:''),
@@ -219,7 +216,7 @@ action('empView', function(ds){
 });
 action('empEditFromView', function(ds){ closeModal(); ACTIONS.empEdit(ds); });
 action('empPrintOne', function(ds){
-  var e = byId(DB.data.employees, ds.id);
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   printHtml(e.name+' 役割シート', '<div class="card"><div class="card-head"><h2>'+esc(e.name)+'　役割シート</h2></div>'+
     '<div class="card-body">'+employeeDetailHtml(e)+'</div></div>');
 });
