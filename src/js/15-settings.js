@@ -274,13 +274,29 @@ action('dataImport', function(){
 });
 
 action('dataClear', function(){
+  /* 共有中は、削除がそのまま共有先へ反映され、チーム全員分のデータが消える。
+     何が消えるのかを必ず伝え、取り消せないので直前にバックアップを自動保存する。 */
+  var shared = (typeof SYNC !== 'undefined' && SYNC.cfg.mode !== 'local');
   confirmDialog('全データの削除',
     'このアプリに保存されているすべてのデータ（社員・目標・KPI・1on1・評価・報告）を削除します。\n'+
+    (shared
+      ? '現在「'+syncModeLabel()+'」で共有しているため、共有先にあるチーム全員分のデータも削除されます。\n'+
+        '他のメンバーの端末からも、次の同期のときに消えます。\n'
+      : '')+
     'この操作は取り消せません。\n\n先に「バックアップを保存」でファイルに書き出すことを強くおすすめします。',
     function(){
-      confirmDialog('最終確認','本当に全データを削除しますか？', function(){
-        DB.reset(); render(); toast('全データを削除しました','ok');
-      }, '削除する');
+      confirmDialog('最終確認',
+        shared ? '本当に全データを削除しますか？\n共有先のチーム全員分のデータも消えます。'
+               : '本当に全データを削除しますか？',
+        function(){
+          /* 取り消せない操作なので、削除の直前にバックアップを書き出しておく */
+          try{
+            var nm = (DB.data.settings.companyName||'組織運営').replace(/[\\/:*?"<>|]/g,'');
+            download(nm+'_削除前バックアップ_'+todayStr()+'.json', JSON.stringify(DB.data, null, 2), 'application/json');
+          }catch(e){}
+          DB.reset(); render();
+          toast('全データを削除しました（削除前のバックアップを保存しました）','ok');
+        }, '削除する');
     }, '次へ');
 });
 
@@ -306,7 +322,7 @@ action('dataCsvAll', function(){
       });
     });
     downloadCsv('週次KPI_全期間_'+todayStr()+'.csv', rows);
-    toast('12種類のCSVを書き出しました','ok');
+    toast('13本のCSVを書き出しました','ok');
   }, 3600);
 });
 

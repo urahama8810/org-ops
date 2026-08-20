@@ -24,6 +24,7 @@ var SYNC = {
   message:'',
   lastPulledAt:'',     /* 最後に取り込んだ相手側の更新時刻 */
   lastPushedAt:'',
+  dirty:false,         /* まだ共有先へ送れていない変更が手元にあるか */
   rev:0,
   timer:null,
   saveTimer:null,
@@ -99,6 +100,7 @@ function syncApply(payload, from){
   DB.data = mergeDefaults(payload.data, emptyData());
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data)); }catch(e){}
   SYNC.lastPulledAt = payload.updatedAt || nowIso();
+  SYNC.dirty = false;
   SYNC.message = (from||'共有先')+'から取り込みました（'+fmtJp(payload.updatedAt)+
                  (payload.updatedBy?'／'+payload.updatedBy:'')+'）';
   return true;
@@ -132,8 +134,7 @@ function folderPick(){
     SYNC.dirHandle = h;
     return idbPut('dirHandle', h);
   }).then(function(){
-    SYNC.cfg.mode = 'folder'; syncSaveCfg();
-    return folderSync(true);
+    return folderFirstSync();
   }).catch(function(e){
     if(e && e.name === 'AbortError') return false;
     SYNC.state='error'; SYNC.message = 'フォルダを開けませんでした：'+(e&&e.message||e);
@@ -172,8 +173,67 @@ function folderWrite(){
     }).then(function(){
       SYNC.lastPushedAt = DB.data.meta.updatedAt;
       SYNC.lastPulledAt = DB.data.meta.updatedAt;
+      SYNC.dirty = false;
       return true;
     });
+}
+
+/* 初回の接続。共有フォルダにすでにチームのデータがあるときは、
+   どちらを残すかを必ず選んでもらう（黙って上書きしない）。
+   選び終わるまで共有フォルダのモードには切り替えない。 */
+function folderLink(){ SYNC.cfg.mode = 'folder'; syncSaveCfg(); }
+
+function folderFirstSync(){
+  return folderEnsure().then(function(ok){
+    if(!ok) return false;
+    return folderRead().then(function(remote){
+      /* 共有フォルダが空 → こちらの内容を最初のデータとして置く */
+      if(!remote || !remote.data){
+        return folderWrite().then(function(){
+          folderLink();
+          SYNC.state = 'ready';
+          SYNC.message = '共有フォルダへ保存しました（'+fmtJp(nowIso())+'）';
+          syncPaint();
+          return 'push';
+        });
+      }
+      return new Promise(function(res){
+        openModal({
+          title:'共有フォルダには、すでにデータがあります',
+          body:'<div style="font-size:13.5px;line-height:1.8;">'+
+               '共有フォルダの更新：'+esc(fmtJp(remote.updatedAt))+
+               (remote.updatedBy?'（'+esc(remote.updatedBy)+'）':'')+'<br>'+
+               'このパソコンの更新：'+esc(fmtJp(DB.data.meta.updatedAt))+'<br><br>'+
+               'どちらの内容を残しますか。<br>'+
+               '<b>取り込む</b>を選ぶと、このパソコンの内容が共有フォルダの内容に置き換わります。<br>'+
+               '<b>自分の内容で上書きする</b>を選ぶと、共有フォルダにあるチーム全員分のデータが消えます。'+
+               '</div>',
+          foot:'<button type="button" class="btn danger" id="fsPush">自分の内容で上書きする</button>'+
+               '<button type="button" class="btn primary" id="fsPull">共有フォルダの内容を取り込む（推奨）</button>',
+          onMount:function(root){
+            root.beforeClose = function(){ res(false); return true; };
+            root.querySelector('#fsPull').addEventListener('click', function(){
+              closeModal();
+              syncApply(remote, '共有フォルダ');
+              folderLink();
+              SYNC.state = 'ready'; syncPaint(); render();
+              res('pull');
+            });
+            root.querySelector('#fsPush').addEventListener('click', function(){
+              closeModal();
+              folderWrite().then(function(){
+                folderLink();
+                SYNC.state = 'ready';
+                SYNC.message = '共有フォルダへ保存しました（'+fmtJp(nowIso())+'）';
+                syncPaint();
+                res('push');
+              });
+            });
+          }
+        });
+      });
+    });
+  });
 }
 
 /* 取り込みと書き出しをまとめて行う。force=true なら競合時に自分を優先 */
@@ -188,6 +248,13 @@ function folderSync(silent){
 
       var rt = remote.updatedAt || '';
       var mine = DB.data.meta.updatedAt || '';
+      /* まだ共有先へ送れていない変更が手元にあるときは、時刻では勝ち負けを決めない。
+         パソコンの時計が数分ずれているだけで、いま入力した内容が黙って消えてしまうため。 */
+      if(SYNC.dirty){
+        if(rt === SYNC.lastPulledAt) return folderWrite().then(function(){ return 'push'; });
+        syncConflictDialog(remote);
+        return 'conflict';
+      }
       if(rt === SYNC.lastPulledAt && mine > (SYNC.lastPushedAt||'')) return folderWrite().then(function(){ return 'push'; });
       if(rt > mine){ syncApply(remote, '共有フォルダ'); return 'pull'; }
       if(rt < mine) return folderWrite().then(function(){ return 'push'; });
@@ -195,7 +262,9 @@ function folderSync(silent){
       return 'same';
     });
   }).then(function(r){
-    if(r){
+    if(r==='conflict'){
+      SYNC.state='error'; SYNC.message='他の人が先に更新しています。';
+    }else if(r){
       SYNC.state='ready';
       if(r==='pull'){ if(!silent) toast(SYNC.message,'ok'); render(); }
       else if(r==='push'){ SYNC.message = '共有フォルダへ保存しました（'+fmtJp(nowIso())+'）'; }
@@ -269,6 +338,7 @@ function serverPush(force){
       SYNC.rev = j.rev||SYNC.rev+1;
       SYNC.lastPushedAt = DB.data.meta.updatedAt;
       SYNC.lastPulledAt = DB.data.meta.updatedAt;
+      SYNC.dirty = false;
       SYNC.state='ready'; SYNC.message='共有サーバーへ保存しました（'+fmtJp(nowIso())+'）';
       syncPaint();
       return true;
@@ -305,6 +375,10 @@ function syncNow(silent){
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(meta){
         if(!meta) return serverPull(silent);
+        /* まだ共有先へ送れていない変更が手元にあるときは、時刻では勝ち負けを決めない。
+           パソコンの時計が数分ずれているだけで、いま入力した内容が黙って消えてしまうため。
+           このときは版数（rev）で競合を見てもらう。 */
+        if(SYNC.dirty) return serverPush(false);
         /* 先に版数を合わせておく。これをしないと、保存のたびに競合と判定されてしまう */
         if(typeof meta.rev === 'number') SYNC.rev = meta.rev;
         var mine = DB.data.meta.updatedAt||'';
@@ -324,6 +398,7 @@ function syncNow(silent){
 
 /* 保存のたびに呼ばれる（連打しても1回にまとめる） */
 function syncAfterSave(){
+  SYNC.dirty = true;
   if(SYNC.cfg.mode==='local' || !SYNC.cfg.auto) return;
   if(typeof setTimeout === 'undefined') return;
   clearTimeout(SYNC.saveTimer);

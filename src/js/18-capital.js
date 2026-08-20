@@ -244,10 +244,17 @@ action('capRuleSave', function(){
 action('capQuick', function(){
   var period = currentCapPeriod() || quarterOf(todayStr());
   var sum = capitalSummary(period);
+  /* 初期値は「まとめ」の行だけから作る。
+     明細で入れた分まで足してしまうと、開いて保存するたびに二重に加算されてしまう。 */
+  function rollupAmount(kind){
+    return spendsOf(period).filter(function(s){ return s.rollup && s.kind === kind; })
+      .reduce(function(a, s){ return a + num(s.amount, 0); }, 0);
+  }
   openForm({
     title:'この期の数字を入れる', wide:true,
     intro:'<b>会計ソフトから、4つの数字を写すだけです。</b>'+
-          '1件ずつ記録する必要はありません。四半期に一度、ここを更新してください。',
+          '1件ずつ記録する必要はありません。四半期に一度、ここを更新してください。'+
+          '<br>金額は「明細で記録する」で入れた分を含みません。まとめて入れる分だけを書いてください。',
     fields:[
       { key:'label',    label:'期', required:true, placeholder:'例：2026-Q3',
         hint:'四半期でも年度でも構いません。' },
@@ -260,8 +267,8 @@ action('capQuick', function(){
       { key:'nonbiz',   label:'事業と関係ない支出（円）', type:'number',
         hint:'社用車、会員権など。ここを正直に分けることが、この画面のいちばんの価値です。' }
     ],
-    value:{ label:period, profit:sum.profit||'', reinvest:sum.reinvest||'',
-            venture:sum.venture||'', nonbiz:sum.nonbiz||'' },
+    value:{ label:period, profit:sum.profit||'', reinvest:rollupAmount('reinvest')||'',
+            venture:rollupAmount('venture')||'', nonbiz:rollupAmount('nonbiz')||'' },
     submitLabel:'保存する',
     onSubmit:function(v){
       var c = DB.data.capital;

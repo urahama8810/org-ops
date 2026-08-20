@@ -182,9 +182,10 @@ action('empEdit', function(ds){
     title:'社員の編集：'+e.name, wide:true, fields:employeeFields(), value:e,
     headNote:'記入率 '+ledgerStatus(e).rate+'%',
     onSubmit:function(v){
-      v.id = e.id;
-      var i = DB.data.employees.indexOf(e);
-      DB.data.employees[i] = v; DB.save(); render();
+      /* レコードごと入れ替えると、等級画面で入れたコースや昇格条件など、
+         このフォームにない項目が消えてしまう。あるキーだけを上書きする。 */
+      for(var k in v) e[k] = v[k];
+      DB.save(); render();
       toast('保存しました', 'ok');
     }
   });
@@ -269,7 +270,7 @@ action('empSearch', function(ds, el){ empFilter.q = el.value; render(); });
 action('empIncomplete', function(ds, el){ empFilter.onlyIncomplete = el.checked; render(); });
 
 action('empCsv', function(){
-  var head = ['氏名','部署','雇用形態','入社日','給与・年収','職種区分','等級','直属上司','部下','代替要員',
+  var head = ['氏名','部署','雇用形態','入社日','職種区分','等級','直属上司','部下','引き継ぎ先',
               '役割','主要業務','成果物','KPI','目標値','実績データの所在','本人判断で決めてよいこと',
               '承認が必要なこと','資料・データの保存場所','引き継ぎのしやすさ','知っている人が1人だけか','記入率','備考'];
   var rows = [head];

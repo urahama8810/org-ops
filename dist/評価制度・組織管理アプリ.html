@@ -199,7 +199,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;line-height:1.45;letter-spacing:.005em;}
 a{color:var(--brand);text-underline-offset:2px;}
 a:hover{color:var(--brand-700);}
 input,select,textarea,button{font-family:inherit;font-size:var(--fs-base);color:inherit;}
-svg.ico{flex:0 0 auto;vertical-align:-.16em;}
+svg.ico{flex:0 0 auto;vertical-align:-.16em;pointer-events:none;}
 
 /* キーボード操作の人にだけ、はっきりした枠を出す */
 :focus{outline:none;}
@@ -891,13 +891,23 @@ table.tbl td.actions .btn.danger:hover{
 }
 .pick-dept:first-child{margin-top:0;}
 
-/* ボタン要素にした部品から、ブラウザ既定の見た目を外す */
+/* ボタン要素にした部品から、ブラウザ既定の見た目を外す
+   （font: の一括指定は、上で決めた文字の大きさや太さまで消してしまうので使わない） */
 .nav-item,.tab{
   appearance:none;-webkit-appearance:none;
-  font:inherit;text-align:left;width:100%;
+  font-family:inherit;line-height:inherit;text-align:left;
   background:none;border:none;
 }
-.tab{width:auto;}
+.nav-item{width:100%;font-size:13px;}
+.tab{
+  width:auto;font-size:var(--fs-base);font-weight:600;
+  border-bottom:2px solid transparent;
+}
+.tab.active{border-bottom-color:var(--brand);}
+/* 狭い画面のナビは横並びなので、幅は中身なりに戻す */
+@media(max-width:820px){
+  .nav-item{width:auto;font-size:12.5px;background:rgba(255,255,255,.05);}
+}
 .modal-head .x{appearance:none;-webkit-appearance:none;border:none;background:none;font:inherit;}
 
 /* はじめての人への案内 */
@@ -1756,7 +1766,9 @@ function openModal(opts){
   document.body.style.overflow = 'hidden';
   _modalStack.push(back);
   back.addEventListener('click', function(e){
-    if(e.target === back || e.target.hasAttribute('data-modal-close')) requestCloseModal();
+    /* アイコン(svg)が e.target になることがあるので、closest で親のボタンまでたどる */
+    var t = e.target.closest ? e.target.closest('[data-modal-close]') : null;
+    if(e.target === back || (t && back.contains(t))) requestCloseModal();
   });
   if(opts.onMount) opts.onMount(back);
   return back;
@@ -3346,9 +3358,10 @@ action('empEdit', function(ds){
     title:'社員の編集：'+e.name, wide:true, fields:employeeFields(), value:e,
     headNote:'記入率 '+ledgerStatus(e).rate+'%',
     onSubmit:function(v){
-      v.id = e.id;
-      var i = DB.data.employees.indexOf(e);
-      DB.data.employees[i] = v; DB.save(); render();
+      /* レコードごと入れ替えると、等級画面で入れたコースや昇格条件など、
+         このフォームにない項目が消えてしまう。あるキーだけを上書きする。 */
+      for(var k in v) e[k] = v[k];
+      DB.save(); render();
       toast('保存しました', 'ok');
     }
   });
@@ -3433,7 +3446,7 @@ action('empSearch', function(ds, el){ empFilter.q = el.value; render(); });
 action('empIncomplete', function(ds, el){ empFilter.onlyIncomplete = el.checked; render(); });
 
 action('empCsv', function(){
-  var head = ['氏名','部署','雇用形態','入社日','給与・年収','職種区分','等級','直属上司','部下','代替要員',
+  var head = ['氏名','部署','雇用形態','入社日','職種区分','等級','直属上司','部下','引き継ぎ先',
               '役割','主要業務','成果物','KPI','目標値','実績データの所在','本人判断で決めてよいこと',
               '承認が必要なこと','資料・データの保存場所','引き継ぎのしやすさ','知っている人が1人だけか','記入率','備考'];
   var rows = [head];
@@ -6347,13 +6360,29 @@ action('dataImport', function(){
 });
 
 action('dataClear', function(){
+  /* 共有中は、削除がそのまま共有先へ反映され、チーム全員分のデータが消える。
+     何が消えるのかを必ず伝え、取り消せないので直前にバックアップを自動保存する。 */
+  var shared = (typeof SYNC !== 'undefined' && SYNC.cfg.mode !== 'local');
   confirmDialog('全データの削除',
     'このアプリに保存されているすべてのデータ（社員・目標・KPI・1on1・評価・報告）を削除します。\n'+
+    (shared
+      ? '現在「'+syncModeLabel()+'」で共有しているため、共有先にあるチーム全員分のデータも削除されます。\n'+
+        '他のメンバーの端末からも、次の同期のときに消えます。\n'
+      : '')+
     'この操作は取り消せません。\n\n先に「バックアップを保存」でファイルに書き出すことを強くおすすめします。',
     function(){
-      confirmDialog('最終確認','本当に全データを削除しますか？', function(){
-        DB.reset(); render(); toast('全データを削除しました','ok');
-      }, '削除する');
+      confirmDialog('最終確認',
+        shared ? '本当に全データを削除しますか？\n共有先のチーム全員分のデータも消えます。'
+               : '本当に全データを削除しますか？',
+        function(){
+          /* 取り消せない操作なので、削除の直前にバックアップを書き出しておく */
+          try{
+            var nm = (DB.data.settings.companyName||'組織運営').replace(/[\\/:*?"<>|]/g,'');
+            download(nm+'_削除前バックアップ_'+todayStr()+'.json', JSON.stringify(DB.data, null, 2), 'application/json');
+          }catch(e){}
+          DB.reset(); render();
+          toast('全データを削除しました（削除前のバックアップを保存しました）','ok');
+        }, '削除する');
     }, '次へ');
 });
 
@@ -6379,7 +6408,7 @@ action('dataCsvAll', function(){
       });
     });
     downloadCsv('週次KPI_全期間_'+todayStr()+'.csv', rows);
-    toast('12種類のCSVを書き出しました','ok');
+    toast('13本のCSVを書き出しました','ok');
   }, 3600);
 });
 
@@ -7773,10 +7802,17 @@ action('capRuleSave', function(){
 action('capQuick', function(){
   var period = currentCapPeriod() || quarterOf(todayStr());
   var sum = capitalSummary(period);
+  /* 初期値は「まとめ」の行だけから作る。
+     明細で入れた分まで足してしまうと、開いて保存するたびに二重に加算されてしまう。 */
+  function rollupAmount(kind){
+    return spendsOf(period).filter(function(s){ return s.rollup && s.kind === kind; })
+      .reduce(function(a, s){ return a + num(s.amount, 0); }, 0);
+  }
   openForm({
     title:'この期の数字を入れる', wide:true,
     intro:'<b>会計ソフトから、4つの数字を写すだけです。</b>'+
-          '1件ずつ記録する必要はありません。四半期に一度、ここを更新してください。',
+          '1件ずつ記録する必要はありません。四半期に一度、ここを更新してください。'+
+          '<br>金額は「明細で記録する」で入れた分を含みません。まとめて入れる分だけを書いてください。',
     fields:[
       { key:'label',    label:'期', required:true, placeholder:'例：2026-Q3',
         hint:'四半期でも年度でも構いません。' },
@@ -7789,8 +7825,8 @@ action('capQuick', function(){
       { key:'nonbiz',   label:'事業と関係ない支出（円）', type:'number',
         hint:'社用車、会員権など。ここを正直に分けることが、この画面のいちばんの価値です。' }
     ],
-    value:{ label:period, profit:sum.profit||'', reinvest:sum.reinvest||'',
-            venture:sum.venture||'', nonbiz:sum.nonbiz||'' },
+    value:{ label:period, profit:sum.profit||'', reinvest:rollupAmount('reinvest')||'',
+            venture:rollupAmount('venture')||'', nonbiz:rollupAmount('nonbiz')||'' },
     submitLabel:'保存する',
     onSubmit:function(v){
       var c = DB.data.capital;
@@ -8415,6 +8451,7 @@ var SYNC = {
   message:'',
   lastPulledAt:'',     /* 最後に取り込んだ相手側の更新時刻 */
   lastPushedAt:'',
+  dirty:false,         /* まだ共有先へ送れていない変更が手元にあるか */
   rev:0,
   timer:null,
   saveTimer:null,
@@ -8490,6 +8527,7 @@ function syncApply(payload, from){
   DB.data = mergeDefaults(payload.data, emptyData());
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data)); }catch(e){}
   SYNC.lastPulledAt = payload.updatedAt || nowIso();
+  SYNC.dirty = false;
   SYNC.message = (from||'共有先')+'から取り込みました（'+fmtJp(payload.updatedAt)+
                  (payload.updatedBy?'／'+payload.updatedBy:'')+'）';
   return true;
@@ -8523,8 +8561,7 @@ function folderPick(){
     SYNC.dirHandle = h;
     return idbPut('dirHandle', h);
   }).then(function(){
-    SYNC.cfg.mode = 'folder'; syncSaveCfg();
-    return folderSync(true);
+    return folderFirstSync();
   }).catch(function(e){
     if(e && e.name === 'AbortError') return false;
     SYNC.state='error'; SYNC.message = 'フォルダを開けませんでした：'+(e&&e.message||e);
@@ -8563,8 +8600,67 @@ function folderWrite(){
     }).then(function(){
       SYNC.lastPushedAt = DB.data.meta.updatedAt;
       SYNC.lastPulledAt = DB.data.meta.updatedAt;
+      SYNC.dirty = false;
       return true;
     });
+}
+
+/* 初回の接続。共有フォルダにすでにチームのデータがあるときは、
+   どちらを残すかを必ず選んでもらう（黙って上書きしない）。
+   選び終わるまで共有フォルダのモードには切り替えない。 */
+function folderLink(){ SYNC.cfg.mode = 'folder'; syncSaveCfg(); }
+
+function folderFirstSync(){
+  return folderEnsure().then(function(ok){
+    if(!ok) return false;
+    return folderRead().then(function(remote){
+      /* 共有フォルダが空 → こちらの内容を最初のデータとして置く */
+      if(!remote || !remote.data){
+        return folderWrite().then(function(){
+          folderLink();
+          SYNC.state = 'ready';
+          SYNC.message = '共有フォルダへ保存しました（'+fmtJp(nowIso())+'）';
+          syncPaint();
+          return 'push';
+        });
+      }
+      return new Promise(function(res){
+        openModal({
+          title:'共有フォルダには、すでにデータがあります',
+          body:'<div style="font-size:13.5px;line-height:1.8;">'+
+               '共有フォルダの更新：'+esc(fmtJp(remote.updatedAt))+
+               (remote.updatedBy?'（'+esc(remote.updatedBy)+'）':'')+'<br>'+
+               'このパソコンの更新：'+esc(fmtJp(DB.data.meta.updatedAt))+'<br><br>'+
+               'どちらの内容を残しますか。<br>'+
+               '<b>取り込む</b>を選ぶと、このパソコンの内容が共有フォルダの内容に置き換わります。<br>'+
+               '<b>自分の内容で上書きする</b>を選ぶと、共有フォルダにあるチーム全員分のデータが消えます。'+
+               '</div>',
+          foot:'<button type="button" class="btn danger" id="fsPush">自分の内容で上書きする</button>'+
+               '<button type="button" class="btn primary" id="fsPull">共有フォルダの内容を取り込む（推奨）</button>',
+          onMount:function(root){
+            root.beforeClose = function(){ res(false); return true; };
+            root.querySelector('#fsPull').addEventListener('click', function(){
+              closeModal();
+              syncApply(remote, '共有フォルダ');
+              folderLink();
+              SYNC.state = 'ready'; syncPaint(); render();
+              res('pull');
+            });
+            root.querySelector('#fsPush').addEventListener('click', function(){
+              closeModal();
+              folderWrite().then(function(){
+                folderLink();
+                SYNC.state = 'ready';
+                SYNC.message = '共有フォルダへ保存しました（'+fmtJp(nowIso())+'）';
+                syncPaint();
+                res('push');
+              });
+            });
+          }
+        });
+      });
+    });
+  });
 }
 
 /* 取り込みと書き出しをまとめて行う。force=true なら競合時に自分を優先 */
@@ -8579,6 +8675,13 @@ function folderSync(silent){
 
       var rt = remote.updatedAt || '';
       var mine = DB.data.meta.updatedAt || '';
+      /* まだ共有先へ送れていない変更が手元にあるときは、時刻では勝ち負けを決めない。
+         パソコンの時計が数分ずれているだけで、いま入力した内容が黙って消えてしまうため。 */
+      if(SYNC.dirty){
+        if(rt === SYNC.lastPulledAt) return folderWrite().then(function(){ return 'push'; });
+        syncConflictDialog(remote);
+        return 'conflict';
+      }
       if(rt === SYNC.lastPulledAt && mine > (SYNC.lastPushedAt||'')) return folderWrite().then(function(){ return 'push'; });
       if(rt > mine){ syncApply(remote, '共有フォルダ'); return 'pull'; }
       if(rt < mine) return folderWrite().then(function(){ return 'push'; });
@@ -8586,7 +8689,9 @@ function folderSync(silent){
       return 'same';
     });
   }).then(function(r){
-    if(r){
+    if(r==='conflict'){
+      SYNC.state='error'; SYNC.message='他の人が先に更新しています。';
+    }else if(r){
       SYNC.state='ready';
       if(r==='pull'){ if(!silent) toast(SYNC.message,'ok'); render(); }
       else if(r==='push'){ SYNC.message = '共有フォルダへ保存しました（'+fmtJp(nowIso())+'）'; }
@@ -8660,6 +8765,7 @@ function serverPush(force){
       SYNC.rev = j.rev||SYNC.rev+1;
       SYNC.lastPushedAt = DB.data.meta.updatedAt;
       SYNC.lastPulledAt = DB.data.meta.updatedAt;
+      SYNC.dirty = false;
       SYNC.state='ready'; SYNC.message='共有サーバーへ保存しました（'+fmtJp(nowIso())+'）';
       syncPaint();
       return true;
@@ -8696,6 +8802,10 @@ function syncNow(silent){
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(meta){
         if(!meta) return serverPull(silent);
+        /* まだ共有先へ送れていない変更が手元にあるときは、時刻では勝ち負けを決めない。
+           パソコンの時計が数分ずれているだけで、いま入力した内容が黙って消えてしまうため。
+           このときは版数（rev）で競合を見てもらう。 */
+        if(SYNC.dirty) return serverPush(false);
         /* 先に版数を合わせておく。これをしないと、保存のたびに競合と判定されてしまう */
         if(typeof meta.rev === 'number') SYNC.rev = meta.rev;
         var mine = DB.data.meta.updatedAt||'';
@@ -8715,6 +8825,7 @@ function syncNow(silent){
 
 /* 保存のたびに呼ばれる（連打しても1回にまとめる） */
 function syncAfterSave(){
+  SYNC.dirty = true;
   if(SYNC.cfg.mode==='local' || !SYNC.cfg.auto) return;
   if(typeof setTimeout === 'undefined') return;
   clearTimeout(SYNC.saveTimer);

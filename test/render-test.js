@@ -506,6 +506,62 @@ t('古い形式のデータでも、消したはずの項目が表に出ない',
   const dec = VIEWS.decisions.render();
   if(/強い怒り|今すぐ決めてしまいたい/.test(dec)) throw new Error('心理状態が画面に出てしまう');
 });
+t('CSVの見出しとデータの列数が合っている', ()=>{
+  /* 項目を消したときに見出しだけ残ると、全列が1つずれたCSVができてしまう */
+  ctx.buildDemoData();
+  const caught = [];
+  const origCsv = ctx.downloadCsv;
+  ctx.downloadCsv = function(name, rows){ caught.push({name, rows}); };
+  const bad = [];
+  try{
+    Object.keys(ACTIONS).filter(k=>/Csv$/i.test(k)).forEach(k=>{
+      caught.length = 0;
+      try{ ACTIONS[k]({}, mkNode('button'), {preventDefault(){}}); }catch(e){ return; }
+      caught.forEach(c=>{
+        if(!c.rows || !c.rows.length) return;
+        const head = c.rows[0].length;
+        const ng = c.rows.slice(1).filter(r=>r.length !== head).length;
+        if(ng) bad.push(k+'（見出し'+head+'列 / ずれた行'+ng+'件）');
+      });
+    });
+  } finally { ctx.downloadCsv = origCsv; }
+  if(bad.length) throw new Error(bad.join(' / '));
+});
+t('CSVの見出しに、消したはずの項目が残っていない', ()=>{
+  ctx.buildDemoData();
+  const caught = [];
+  const origCsv = ctx.downloadCsv;
+  ctx.downloadCsv = function(name, rows){ caught.push({name, rows}); };
+  const bad = [];
+  try{
+    Object.keys(ACTIONS).filter(k=>/Csv$/i.test(k)).forEach(k=>{
+      try{ ACTIONS[k]({}, mkNode('button'), {preventDefault(){}}); }catch(e){}
+    });
+    caught.forEach(c=>{
+      if(!c.rows || !c.rows.length) return;
+      c.rows[0].forEach(h=>{
+        ['給与','年収','離職','心理状態'].forEach(g=>{
+          if(String(h).indexOf(g) >= 0) bad.push(c.name+' の見出し「'+h+'」');
+        });
+      });
+    });
+  } finally { ctx.downloadCsv = origCsv; }
+  if(bad.length) throw new Error(bad.join(' / '));
+});
+t('共有：保存すると未送信の印が立ち、送ると下りる', ()=>{
+  ctx.buildDemoData();
+  DB.save();
+  if(!ctx.SYNC.dirty) throw new Error('保存しても未送信の印が立たない');
+  ctx.syncApply({ data: JSON.parse(JSON.stringify(DB.data)), updatedAt: ctx.nowIso() }, 'テスト');
+  if(ctx.SYNC.dirty) throw new Error('取り込んでも未送信の印が下りない');
+});
+t('共有：初回接続の処理がある（黙って上書きしない）', ()=>{
+  if(typeof ctx.folderFirstSync !== 'function') throw new Error('folderFirstSync がない');
+  const src = fs.readFileSync(path.join(DIR,'20-sync.js'),'utf8');
+  if(!/folderFirstSync()/.test(src)) throw new Error('接続時に folderFirstSync を呼んでいない');
+  if(src.indexOf("SYNC.cfg.mode = 'folder'; syncSaveCfg();") >= 0 && /return folderSync(true);/.test(src))
+    throw new Error('接続時に、確認せず同期する古い処理が残っている');
+});
 t('全ナビ項目に対応する画面がある', ()=>{
   ctx.NAV.forEach(g=>g.items.forEach(it=>{
     if(!VIEWS[it.key]) throw new Error('画面が存在しない: '+it.key);

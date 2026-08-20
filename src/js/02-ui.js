@@ -35,7 +35,9 @@ function openModal(opts){
   document.body.style.overflow = 'hidden';
   _modalStack.push(back);
   back.addEventListener('click', function(e){
-    if(e.target === back || e.target.hasAttribute('data-modal-close')) requestCloseModal();
+    /* アイコン(svg)が e.target になることがあるので、closest で親のボタンまでたどる */
+    var t = e.target.closest ? e.target.closest('[data-modal-close]') : null;
+    if(e.target === back || (t && back.contains(t))) requestCloseModal();
   });
   if(opts.onMount) opts.onMount(back);
   return back;
