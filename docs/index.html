@@ -199,7 +199,7 @@ h1,h2,h3,h4{margin:0;font-weight:700;line-height:1.45;letter-spacing:.005em;}
 a{color:var(--brand);text-underline-offset:2px;}
 a:hover{color:var(--brand-700);}
 input,select,textarea,button{font-family:inherit;font-size:var(--fs-base);color:inherit;}
-svg.ico{flex:0 0 auto;vertical-align:-.16em;}
+svg.ico{flex:0 0 auto;vertical-align:-.16em;pointer-events:none;}
 
 /* キーボード操作の人にだけ、はっきりした枠を出す */
 :focus{outline:none;}
@@ -819,6 +819,11 @@ legend{font-size:var(--fs-sm);font-weight:700;color:var(--text-2);padding:0 var(
   .modal-foot{display:none;}
   .badge,.alert,.progress > span{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   details.help{display:none;}
+  /* 画面の操作のためだけの部品は、紙には出さない */
+  .intro-card,.pick-grid,.pick-dept,.tabs,.search-box{display:none !important;}
+  td.actions,th.actions,.card-head .btn,.card-head a.btn,.tile .foot{display:none !important;}
+  .me-head{border:1px solid #999;border-radius:0;box-shadow:none;}
+  .me-avatar{background:#ddd !important;color:#000;}
   a[href]:after{content:'';}
 }
 
@@ -886,13 +891,23 @@ table.tbl td.actions .btn.danger:hover{
 }
 .pick-dept:first-child{margin-top:0;}
 
-/* ボタン要素にした部品から、ブラウザ既定の見た目を外す */
+/* ボタン要素にした部品から、ブラウザ既定の見た目を外す
+   （font: の一括指定は、上で決めた文字の大きさや太さまで消してしまうので使わない） */
 .nav-item,.tab{
   appearance:none;-webkit-appearance:none;
-  font:inherit;text-align:left;width:100%;
+  font-family:inherit;line-height:inherit;text-align:left;
   background:none;border:none;
 }
-.tab{width:auto;}
+.nav-item{width:100%;font-size:13px;}
+.tab{
+  width:auto;font-size:var(--fs-base);font-weight:600;
+  border-bottom:2px solid transparent;
+}
+.tab.active{border-bottom-color:var(--brand);}
+/* 狭い画面のナビは横並びなので、幅は中身なりに戻す */
+@media(max-width:820px){
+  .nav-item{width:auto;font-size:12.5px;background:rgba(255,255,255,.05);}
+}
 .modal-head .x{appearance:none;-webkit-appearance:none;border:none;background:none;font:inherit;}
 
 /* はじめての人への案内 */
@@ -931,6 +946,9 @@ table.tbl td.actions .btn.danger:hover{
   .pick-grid{grid-template-columns:repeat(auto-fill,minmax(92px,1fr));}
   .topbar{padding:8px var(--sp-3);}
 }
+
+/* 「削除」など、押し間違えたくないボタンを少し離すための余白 */
+.sep-x{display:inline-block;width:14px;}
 
 </style>
 </head>
@@ -1464,7 +1482,8 @@ function lines(s){
 function pct(n){ return (isFinite(n)?Math.round(n):0)+'%'; }
 function clamp(n,a,b){ return Math.max(a,Math.min(b,n)); }
 function num(v,def){ var n = parseFloat(v); return isFinite(n) ? n : (def===undefined?0:def); }
-function byId(arr,id){ for(var i=0;i<arr.length;i++) if(arr[i].id===id) return arr[i]; return null; }
+/* 一覧からIDで1件を取り出す。見つからない場合と、一覧そのものがない場合は null を返す */
+function byId(arr,id){ if(!arr || !arr.length) return null; for(var i=0;i<arr.length;i++) if(arr[i] && arr[i].id===id) return arr[i]; return null; }
 function sortBy(arr,fn){ return arr.slice().sort(function(a,b){ var x=fn(a),y=fn(b); return x<y?-1:x>y?1:0; }); }
 function uniq(arr){ var o=[],s={}; arr.forEach(function(v){ if(v && !s[v]){s[v]=1;o.push(v);} }); return o; }
 
@@ -1747,7 +1766,9 @@ function openModal(opts){
   document.body.style.overflow = 'hidden';
   _modalStack.push(back);
   back.addEventListener('click', function(e){
-    if(e.target === back || e.target.hasAttribute('data-modal-close')) requestCloseModal();
+    /* アイコン(svg)が e.target になることがあるので、closest で親のボタンまでたどる */
+    var t = e.target.closest ? e.target.closest('[data-modal-close]') : null;
+    if(e.target === back || (t && back.contains(t))) requestCloseModal();
   });
   if(opts.onMount) opts.onMount(back);
   return back;
@@ -2011,19 +2032,35 @@ function printHtml(title, bodyHtml){
 }
 
 /* ---------- イベント委譲 ---------- */
+/* 操作を実行する。
+   共有で使っていると、他の人が消した記録のボタンが画面に残っていることがある。
+   そのまま押しても何も起きないと戸惑うので、理由を伝えて画面を作り直す。 */
+function runAction(fn, name, ds, el, ev){
+  try{
+    fn(ds, el, ev);
+  }catch(err){
+    if(typeof console !== 'undefined' && console.error) console.error(name, err);
+    closeAllModals();
+    toast('この操作はできませんでした。表示が古い可能性があるため、画面を作り直します。','bad');
+    try{ render(); }catch(e2){}
+  }
+}
+
 document.addEventListener('click', function(e){
   var t = e.target.closest('[data-act]');
   if(!t) return;
-  var fn = ACTIONS[t.getAttribute('data-act')];
+  var name = t.getAttribute('data-act');
+  var fn = ACTIONS[name];
   if(!fn) return;
   e.preventDefault();
-  fn(t.dataset, t, e);
+  runAction(fn, name, t.dataset, t, e);
 });
 document.addEventListener('change', function(e){
   var t = e.target.closest('[data-change]');
   if(!t) return;
-  var fn = ACTIONS[t.getAttribute('data-change')];
-  if(fn) fn(t.dataset, t, e);
+  var name = t.getAttribute('data-change');
+  var fn = ACTIONS[name];
+  if(fn) runAction(fn, name, t.dataset, t, e);
 });
 
 /* ===== 03-logic.js ===== */
@@ -3316,23 +3353,22 @@ action('empNew', function(){
 });
 
 action('empEdit', function(ds){
-  var e = byId(DB.data.employees, ds.id);
-  if(!e) return;
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   openForm({
     title:'社員の編集：'+e.name, wide:true, fields:employeeFields(), value:e,
     headNote:'記入率 '+ledgerStatus(e).rate+'%',
     onSubmit:function(v){
-      v.id = e.id;
-      var i = DB.data.employees.indexOf(e);
-      DB.data.employees[i] = v; DB.save(); render();
+      /* レコードごと入れ替えると、等級画面で入れたコースや昇格条件など、
+         このフォームにない項目が消えてしまう。あるキーだけを上書きする。 */
+      for(var k in v) e[k] = v[k];
+      DB.save(); render();
       toast('保存しました', 'ok');
     }
   });
 });
 
 action('empDel', function(ds){
-  var e = byId(DB.data.employees, ds.id);
-  if(!e) return;
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   var reports = directReports(e.id);
   var warn = reports.length ? '\n\n※ この社員を上司としている部下が'+reports.length+'名います（'+
              reports.map(function(x){return x.name;}).join('、')+'）。削除すると直属上司が未確定になります。' : '';
@@ -3345,8 +3381,7 @@ action('empDel', function(ds){
 });
 
 action('empView', function(ds){
-  var e = byId(DB.data.employees, ds.id);
-  if(!e) return;
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   openModal({
     title:e.name+'　役割シート', wide:true,
     headNote:(e.dept||'')+(e.grade?' / '+e.grade:''),
@@ -3358,7 +3393,7 @@ action('empView', function(ds){
 });
 action('empEditFromView', function(ds){ closeModal(); ACTIONS.empEdit(ds); });
 action('empPrintOne', function(ds){
-  var e = byId(DB.data.employees, ds.id);
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   printHtml(e.name+' 役割シート', '<div class="card"><div class="card-head"><h2>'+esc(e.name)+'　役割シート</h2></div>'+
     '<div class="card-body">'+employeeDetailHtml(e)+'</div></div>');
 });
@@ -3411,7 +3446,7 @@ action('empSearch', function(ds, el){ empFilter.q = el.value; render(); });
 action('empIncomplete', function(ds, el){ empFilter.onlyIncomplete = el.checked; render(); });
 
 action('empCsv', function(){
-  var head = ['氏名','部署','雇用形態','入社日','給与・年収','職種区分','等級','直属上司','部下','代替要員',
+  var head = ['氏名','部署','雇用形態','入社日','職種区分','等級','直属上司','部下','引き継ぎ先',
               '役割','主要業務','成果物','KPI','目標値','実績データの所在','本人判断で決めてよいこと',
               '承認が必要なこと','資料・データの保存場所','引き継ぎのしやすさ','知っている人が1人だけか','記入率','備考'];
   var rows = [head];
@@ -3643,8 +3678,7 @@ action('goalNew', function(ds){
 });
 
 action('goalEdit', function(ds){
-  var g = byId(DB.data.goals, ds.id);
-  if(!g) return;
+  var g = byId(DB.data.goals, ds.id); if(!g) return;
   var fields = goalFields();
   var comp = DB.data.goals.filter(function(x){ return x.level==='company' && x.id!==g.id; });
   if(comp.length) fields.splice(2,0,{ key:'parentId', label:'紐づく会社目標', type:'select',
@@ -3659,8 +3693,7 @@ action('goalEdit', function(ds){
 });
 
 action('goalUpdate', function(ds){
-  var g = byId(DB.data.goals, ds.id);
-  if(!g) return;
+  var g = byId(DB.data.goals, ds.id); if(!g) return;
   openForm({
     title:'実績の更新：'+g.title, submitLabel:'更新',
     fields:[
@@ -3680,8 +3713,7 @@ action('goalUpdate', function(ds){
 });
 
 action('goalDel', function(ds){
-  var g = byId(DB.data.goals, ds.id);
-  if(!g) return;
+  var g = byId(DB.data.goals, ds.id); if(!g) return;
   confirmDialog('目標の削除','「'+g.title+'」を削除します。よろしいですか？', function(){
     DB.data.goals = DB.data.goals.filter(function(x){ return x.id !== g.id; });
     DB.data.goals.forEach(function(x){ if(x.parentId === g.id) x.parentId = ''; });
@@ -3808,8 +3840,7 @@ action('scNew', function(){
 });
 
 action('scEdit', function(ds){
-  var s = byId(DB.data.scorecards, ds.id);
-  if(!s) return;
+  var s = byId(DB.data.scorecards, ds.id); if(!s) return;
   openForm({ title:'役割表：'+s.jobType, wide:true, fields:SCORECARD_FIELDS, value:s,
     onSubmit:function(v){
       v.id = s.id;
@@ -3819,8 +3850,7 @@ action('scEdit', function(ds){
 });
 
 action('scDel', function(ds){
-  var s = byId(DB.data.scorecards, ds.id);
-  if(!s) return;
+  var s = byId(DB.data.scorecards, ds.id); if(!s) return;
   confirmDialog('職種の削除','「'+s.jobType+'」を削除します。よろしいですか？', function(){
     DB.data.scorecards = DB.data.scorecards.filter(function(x){ return x.id !== s.id; });
     DB.save(); render(); toast('削除しました','ok');
@@ -3861,7 +3891,7 @@ function scorecardPrintHtml(s){
     '</dl>';
 }
 action('scPrintOne', function(ds){
-  var s = byId(DB.data.scorecards, ds.id);
+  var s = byId(DB.data.scorecards, ds.id); if(!s) return;
   printHtml(s.jobType+' 役割表',
     '<div class="card"><div class="card-head"><h2>'+esc(s.jobType)+'　役割表</h2></div>'+
     '<div class="card-body">'+scorecardPrintHtml(s)+'</div></div>');
@@ -3974,10 +4004,12 @@ VIEWS.kpi = {
           var over = !r.doneAt && r.due < todayStr();
           return '<span class="'+(over?'badge bad':'small')+'">'+esc(r.due)+'</span>'+
                  (r.doneAt?'<div class="small" style="color:var(--ok);">完了</div>':''); } },
-      { label:'', cls:'actions', width:'130px', render:function(r){
+      { label:'', cls:'actions', width:'190px', render:function(r){
+          /* 「削除」は押し間違えると入力内容ごと消えるので、少し離して置く */
           return btn('入力','kpiRowEdit',{w:w.id,r:r.id})+' '+
-                 (r.doneAt?btn('完了解除','kpiRowUndone',{w:w.id,r:r.id}):btn('対策完了','kpiRowDone',{w:w.id,r:r.id}))+' '+
-                 btn('×','kpiRowDel',{w:w.id,r:r.id},'danger'); } }
+                 (r.doneAt?btn('完了解除','kpiRowUndone',{w:w.id,r:r.id}):btn('対策完了','kpiRowDone',{w:w.id,r:r.id}))+
+                 '<span class="sep-x"></span>'+
+                 btn('削除','kpiRowDel',{w:w.id,r:r.id},'danger'); } }
     ];
     h += card(w.weekOf+' の週　KPI表', tableHtml(cols, w.rows, {
         emptyTitle:'指標が登録されていません',
@@ -4062,8 +4094,7 @@ function importGoalRows(){
 }
 
 action('kpiImport', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  if(!w) return;
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   var d = DB.data;
   var candidates = [];
   d.goals.forEach(function(g){
@@ -4108,7 +4139,7 @@ action('kpiImport', function(ds){
 });
 
 action('kpiCopyPrev', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   var sorted = sortBy(DB.data.kpiWeeks, function(x){ return x.weekOf; });
   var idx = sorted.indexOf(w);
   if(idx <= 0){ toast('前週の記録がありません','bad'); return; }
@@ -4143,13 +4174,13 @@ function kpiRowFields(){
   ];
 }
 action('kpiRowNew', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   openForm({ title:'指標を追加', wide:true, fields:kpiRowFields(), value:{target:'',actual:''},
     onSubmit:function(v){ v.id = uid('row'); w.rows.push(v); DB.save(); render(); toast('追加しました','ok'); } });
 });
 action('kpiRowEdit', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   var st = kpiRowStatus(r);
   openForm({ title:'指標の入力：'+r.indicator, wide:true, fields:kpiRowFields(), value:r,
     intro: (st==='ng'||st==='watch') ?
@@ -4161,8 +4192,8 @@ action('kpiRowEdit', function(ds){
     } });
 });
 action('kpiRowDel', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   confirmDialog('この指標を表から外す',
     '「'+(r?r.indicator:'')+'」をこの週の表から外します。\n入力済みの原因・対策・担当者・期限も一緒に消えます。',
     function(){
@@ -4171,18 +4202,18 @@ action('kpiRowDel', function(ds){
     }, '外す');
 });
 action('kpiRowDone', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   r.doneAt = todayStr(); DB.save(); render(); toast('対策を完了にしました','ok');
 });
 action('kpiRowUndone', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   r.doneAt = ''; DB.save(); render();
 });
 action('kpiActual', function(ds, el){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   r.actual = el.value === '' ? '' : num(el.value);
   DB.save();
   /* 画面全体を描き直すと入力中の欄から離れてしまうので、その行だけ書き換える */
@@ -4204,7 +4235,7 @@ action('kpiActual', function(ds, el){
 action('kpiSelWeek', function(ds, el){ kpiSel.weekId = el.value; render(); });
 
 action('kpiMinutes', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   openForm({ title:'議事記録：'+w.weekOf+' の週', wide:true,
     fields:[
       { key:'attendees', label:'出席者', full:true },
@@ -4225,8 +4256,7 @@ action('kpiMinutes', function(ds){
 /* ---------- 会議モード（45分タイマー） ---------- */
 var meetingTimer = null;
 action('kpiMeetingMode', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  if(!w) return;
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   var stepIndex = 0, elapsed = 0, running = false;
 
   function stepHtml(){
@@ -4331,8 +4361,8 @@ action('kpiMeetingMode', function(ds){
 });
 action('kpiMeetRowEdit', function(ds){
   /* 会議モード中の行編集：保存後に会議モードを描き直す */
-  var w = byId(DB.data.kpiWeeks, ds.w);
-  var r = byId(w.rows, ds.r);
+  var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
+  var r = byId(w.rows, ds.r); if(!r) return;
   var top = _modalStack[_modalStack.length-1];
   openForm({ title:'原因・対策の入力：'+r.indicator, wide:true, fields:kpiRowFields(), value:r,
     intro:'<b>その場で決めます。</b>対策・責任者・期限のいずれかが空欄のまま会議を終えないでください。',
@@ -4346,7 +4376,7 @@ action('kpiMeetRowEdit', function(ds){
 
 /* ---------- 出力 ---------- */
 action('kpiCsv', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.id);
+  var w = byId(DB.data.kpiWeeks, ds.id); if(!w) return;
   var rows = [['週','指標','目標','実績','差','状態','原因','対策','責任者','期限','完了日']];
   w.rows.forEach(function(r){
     var st = kpiRowStatus(r);
@@ -4359,7 +4389,7 @@ action('kpiCsv', function(ds){
 });
 
 action('kpiPrint', function(ds){
-  var w = byId(DB.data.kpiWeeks, ds.id);
+  var w = byId(DB.data.kpiWeeks, ds.id); if(!w) return;
   var cols = [
     {label:'指標', render:function(r){ return esc(r.indicator); }},
     {label:'目標', cls:'num', render:function(r){ return esc(r.target); }},
@@ -4581,24 +4611,24 @@ function openOooForm(rec, empId){
 }
 
 action('oooEdit', function(ds){
-  var r = byId(DB.data.oneOnOnes, ds.id);
+  var r = byId(DB.data.oneOnOnes, ds.id); if(!r) return;
   if(r) openOooForm(r, r.employeeId);
 });
 action('oooDel', function(ds){
-  var r = byId(DB.data.oneOnOnes, ds.id);
+  var r = byId(DB.data.oneOnOnes, ds.id); if(!r) return;
   confirmDialog('1on1記録の削除', empName(r.employeeId)+'さんの'+r.month+'の記録を削除します。よろしいですか？', function(){
     DB.data.oneOnOnes = DB.data.oneOnOnes.filter(function(x){ return x.id !== r.id; });
     DB.save(); render(); toast('削除しました','ok');
   }, '削除する');
 });
 action('oooPromise', function(ds, el){
-  var r = byId(DB.data.oneOnOnes, ds.id);
+  var r = byId(DB.data.oneOnOnes, ds.id); if(!r) return;
   r.promises[num(ds.i)].done = el.checked;
   DB.save(); render();
 });
 
 action('oooHistory', function(ds){
-  var e = byId(DB.data.employees, ds.emp);
+  var e = byId(DB.data.employees, ds.emp); if(!e) return;
   var recs = sortBy(DB.data.oneOnOnes.filter(function(o){ return o.employeeId === e.id; }), function(o){ return o.month; }).reverse();
   var body = recs.length ? recs.map(function(o){ return oooDetailHtml(o); }).join('<div class="sep"></div>') :
     '<div class="empty"><div class="big">記録がありません</div></div>';
@@ -4608,7 +4638,7 @@ action('oooHistory', function(ds){
          '<button class="btn" data-modal-close>閉じる</button>' });
 });
 action('oooHistPrint', function(ds){
-  var e = byId(DB.data.employees, ds.emp);
+  var e = byId(DB.data.employees, ds.emp); if(!e) return;
   var recs = sortBy(DB.data.oneOnOnes.filter(function(o){ return o.employeeId === e.id; }), function(o){ return o.month; }).reverse();
   printHtml(e.name+' 1on1履歴',
     '<div class="card"><div class="card-head"><h2>'+esc(e.name)+'　1on1履歴</h2></div><div class="card-body">'+
@@ -4629,7 +4659,7 @@ function oooDetailHtml(o){
 }
 
 action('oooPrint', function(ds){
-  var o = byId(DB.data.oneOnOnes, ds.id);
+  var o = byId(DB.data.oneOnOnes, ds.id); if(!o) return;
   printHtml('1on1記録 '+empName(o.employeeId)+' '+o.month,
     '<div class="card"><div class="card-head"><h2>1on1記録　'+esc(empName(o.employeeId))+'</h2></div>'+
     '<div class="card-body">'+oooDetailHtml(o)+'</div></div>');
@@ -4778,7 +4808,7 @@ VIEWS.evaluations = {
           var next = idx < EVAL_STAGES.length-1 ? EVAL_STAGES[idx+1] : null;
           return btn('評価シート','evalOpen',{id:ev.id},'primary')+' '+
                  (next?btn(next.label+'へ','evalNext',{id:ev.id}):'')+' '+
-                 btn('×','evalDel',{id:ev.id},'danger'); } }
+                 '<span class="sep-x"></span>'+btn('削除','evalDel',{id:ev.id},'danger'); } }
     ];
     h += card(period+' の評価（'+evs.length+'名）', tableHtml(cols, rows, {}), {tight:true,
       sub:'自己評価 → 直属上司評価 → 管理職間で調整 → 確定 → 本人説明'});
@@ -4832,7 +4862,7 @@ action('evalCreateAll', function(){
 });
 
 action('evalDel', function(ds){
-  var ev = byId(DB.data.evaluations, ds.id);
+  var ev = byId(DB.data.evaluations, ds.id); if(!ev) return;
   confirmDialog('評価シートの削除', empName(ev.employeeId)+'さんの'+ev.period+'の評価を削除します。よろしいですか？', function(){
     DB.data.evaluations = DB.data.evaluations.filter(function(x){ return x.id !== ev.id; });
     DB.save(); render(); toast('削除しました','ok');
@@ -4840,7 +4870,7 @@ action('evalDel', function(ds){
 });
 
 action('evalNext', function(ds){
-  var ev = byId(DB.data.evaluations, ds.id);
+  var ev = byId(DB.data.evaluations, ds.id); if(!ev) return;
   var idx = evalStageIndex(ev);
   if(idx >= EVAL_STAGES.length-1) return;
   var next = EVAL_STAGES[idx+1];
@@ -4863,8 +4893,7 @@ action('evalNext', function(ds){
 
 /* ---------- 評価シート ---------- */
 action('evalOpen', function(ds){
-  var ev = byId(DB.data.evaluations, ds.id);
-  if(!ev) return;
+  var ev = byId(DB.data.evaluations, ds.id); if(!ev) return;
   var emp = byId(DB.data.employees, ev.employeeId);
   var items = evalItemsFor(ev.type);
 
@@ -4992,7 +5021,7 @@ action('evalOpen', function(ds){
 });
 
 action('evalPrint', function(ds){
-  var ev = byId(DB.data.evaluations, ds.id);
+  var ev = byId(DB.data.evaluations, ds.id); if(!ev) return;
   var items = evalItemsFor(ev.type);
   var score = evalScore(ev), self = evalSelfScore(ev);
   var rows = items.map(function(it){
@@ -5197,7 +5226,7 @@ function promotionSummary(e){
 }
 
 action('gradeSet', function(ds, el){
-  var e = byId(DB.data.employees, ds.id);
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   var from = e.grade || '';
   e.grade = el.value;
   if(from !== e.grade){
@@ -5208,13 +5237,14 @@ action('gradeSet', function(ds, el){
 });
 
 action('gradeCourse', function(ds){
-  var e = byId(DB.data.employees, ds.id);
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   e.course = ds.course; DB.save(); render();
   toast(e.name+'さんを'+(ds.course==='expert'?'専門職':'管理職')+'コースにしました','ok');
 });
 
 action('gradeEdit', function(ds){
   var g = DB.data.grades.filter(function(x){ return x.code === ds.code; })[0];
+  if(!g) return;
   openForm({
     title:'等級の定義：'+g.code, wide:true,
     fields:[
@@ -5239,7 +5269,7 @@ action('gradeReset', function(){
 });
 
 action('gradePromote', function(ds){
-  var e = byId(DB.data.employees, ds.id);
+  var e = byId(DB.data.employees, ds.id); if(!e) return;
   var d = DB.data;
   var idx = d.grades.map(function(g){ return g.code; }).indexOf(e.grade);
   var next = idx >= 0 && idx < d.grades.length-1 ? d.grades[idx+1] : (idx<0 ? d.grades[0] : null);
@@ -5449,7 +5479,7 @@ function renderReportLog(needApproval){
         var s = reportDeadlineStatus(r); return badge(s.label, s.cls); } },
     { label:'', cls:'actions', width:'170px', render:function(r){
         return (r.status!=='approved'?btn('承認','repApprove',{id:r.id},'primary')+' ':'')+
-               btn('編集','repEdit',{id:r.id})+' '+btn('×','repDel',{id:r.id},'danger'); } }
+               btn('編集','repEdit',{id:r.id})+'<span class="sep-x"></span>'+btn('削除','repDel',{id:r.id},'danger'); } }
   ] : [
     { label:'件名', render:function(r){ return '<b>'+esc(r.title)+'</b><div class="small muted">'+esc(r.detail||'').slice(0,70)+'</div>'; } },
     { label:'種類', width:'150px', render:function(r){
@@ -5462,7 +5492,7 @@ function renderReportLog(needApproval){
     { label:'判定', width:'160px', render:function(r){
         var s = reportDeadlineStatus(r); return badge(s.label, s.cls); } },
     { label:'', cls:'actions', width:'130px', render:function(r){
-        return btn('編集','repEdit',{id:r.id})+' '+btn('×','repDel',{id:r.id},'danger'); } }
+        return btn('編集','repEdit',{id:r.id})+'<span class="sep-x"></span>'+btn('削除','repDel',{id:r.id},'danger'); } }
   ];
 
   h += card(needApproval?'承認申請':'報告ログ', tableHtml(cols, list, {
@@ -5494,7 +5524,7 @@ action('repNewApproval', function(){
     } });
 });
 action('repEdit', function(ds){
-  var r = byId(DB.data.reports, ds.id);
+  var r = byId(DB.data.reports, ds.id); if(!r) return;
   openForm({ title:'記録の編集', wide:true, fields:reportFields(!!r.needApproval), value:r,
     onSubmit:function(v){
       v.id = r.id; v.needApproval = r.needApproval;
@@ -5502,7 +5532,7 @@ action('repEdit', function(ds){
     } });
 });
 action('repApprove', function(ds){
-  var r = byId(DB.data.reports, ds.id);
+  var r = byId(DB.data.reports, ds.id); if(!r) return;
   openForm({ title:'承認：'+r.title,
     fields:[
       { key:'status', label:'判定', type:'select', required:true, options:[
@@ -5523,7 +5553,7 @@ action('repApprove', function(ds){
     } });
 });
 action('repDel', function(ds){
-  var r = byId(DB.data.reports, ds.id);
+  var r = byId(DB.data.reports, ds.id); if(!r) return;
   confirmDialog('記録の削除','「'+r.title+'」を削除します。よろしいですか？', function(){
     DB.data.reports = DB.data.reports.filter(function(x){ return x.id !== r.id; });
     DB.save(); render(); toast('削除しました','ok');
@@ -5594,16 +5624,16 @@ action('incNew', function(){
     onSubmit:function(v){ v.id = uid('inc'); DB.data.incidents.push(v); DB.save(); render(); toast('記録しました','ok'); } });
 });
 action('incEdit', function(ds){
-  var i = byId(DB.data.incidents, ds.id);
+  var i = byId(DB.data.incidents, ds.id); if(!i) return;
   openForm({ title:'問題処理の編集', wide:true, fields:incidentFields(), value:i,
     onSubmit:function(v){ v.id=i.id; v.doneAt=i.doneAt; DB.data.incidents[DB.data.incidents.indexOf(i)]=v; DB.save(); render(); toast('保存しました','ok'); } });
 });
 action('incDone', function(ds){
-  var i = byId(DB.data.incidents, ds.id);
+  var i = byId(DB.data.incidents, ds.id); if(!i) return;
   i.doneAt = todayStr(); DB.save(); render(); toast('完了にしました','ok');
 });
 action('incDel', function(ds){
-  var i = byId(DB.data.incidents, ds.id);
+  var i = byId(DB.data.incidents, ds.id); if(!i) return;
   confirmDialog('記録の削除','「'+i.title+'」を削除します。よろしいですか？', function(){
     DB.data.incidents = DB.data.incidents.filter(function(x){ return x.id!==i.id; });
     DB.save(); render(); toast('削除しました','ok');
@@ -5639,7 +5669,7 @@ function renderExceptions(){
       if(!x.reviewDate) return badge('未設定','bad');
       return x.reviewDate < todayStr() ? badge(x.reviewDate+' 超過','bad') : esc(x.reviewDate); }},
     {label:'', cls:'actions', width:'130px', render:function(x){
-      return btn('編集','excEdit',{id:x.id})+' '+btn('×','excDel',{id:x.id},'danger'); }}
+      return btn('編集','excEdit',{id:x.id})+'<span class="sep-x"></span>'+btn('削除','excDel',{id:x.id},'danger'); }}
   ], list, {emptyTitle:'例外の記録はありません', emptyText:'ルールの例外を認めたら、必ずここに記録します。'}),
   {tight:true});
   return h;
@@ -5659,12 +5689,12 @@ action('excNew', function(){
     onSubmit:function(v){ v.id=uid('exc'); DB.data.exceptions.push(v); DB.save(); render(); toast('記録しました','ok'); } });
 });
 action('excEdit', function(ds){
-  var x = byId(DB.data.exceptions, ds.id);
+  var x = byId(DB.data.exceptions, ds.id); if(!x) return;
   openForm({ title:'例外の編集', wide:true, fields:EXC_FIELDS, value:x,
     onSubmit:function(v){ v.id=x.id; DB.data.exceptions[DB.data.exceptions.indexOf(x)]=v; DB.save(); render(); toast('保存しました','ok'); } });
 });
 action('excDel', function(ds){
-  var x = byId(DB.data.exceptions, ds.id);
+  var x = byId(DB.data.exceptions, ds.id); if(!x) return;
   confirmDialog('例外記録の削除','「'+x.title+'」を削除します。よろしいですか？', function(){
     DB.data.exceptions = DB.data.exceptions.filter(function(y){ return y.id!==x.id; });
     DB.save(); render(); toast('削除しました','ok');
@@ -5749,7 +5779,7 @@ VIEWS.improvement = {
           return badge(c.judge==='ok'?'改善している':c.judge==='ng'?'改善していない':'一部改善',
                        c.judge==='ok'?'ok':c.judge==='ng'?'bad':'warn'); }},
         {label:'', cls:'actions', width:'50px', render:function(c, i){
-          return btn('×','impCheckDel',{id:p.id,i:i},'danger'); }}
+          return btn('削除','impCheckDel',{id:p.id,i:i},'danger'); }}
       ], checks, {emptyTitle:'週次の確認記録がありません', emptyText:'毎週、事実で確認して記録します。'});
 
       if(p.status === 'closed'){
@@ -5819,11 +5849,11 @@ function openImpForm(rec, empId){
   });
 }
 action('impEdit', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   openImpForm(p, p.employeeId);
 });
 action('impCheckNew', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   openForm({ title:'週次確認の記録',
     fields:[
       { key:'date', label:'確認日', type:'date', required:true },
@@ -5842,14 +5872,14 @@ action('impCheckNew', function(ds){
     } });
 });
 action('impCheckDel', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   confirmDialog('この週の記録を削除する',
     'この週の確認記録を削除します。よろしいですか？',
     function(){ p.weeklyChecks.splice(num(ds.i),1); DB.save(); render(); toast('削除しました','ok'); },
     '削除する');
 });
 action('impClose', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   openForm({ title:'改善計画の終了', wide:true,
     fields:[
       { key:'result', label:'結果', type:'textarea', rows:4, full:true, required:true,
@@ -5868,14 +5898,14 @@ action('impClose', function(ds){
     } });
 });
 action('impDel', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   confirmDialog('改善計画の削除', empName(p.employeeId)+'さんの改善計画を削除します。よろしいですか？', function(){
     DB.data.improvementPlans = DB.data.improvementPlans.filter(function(x){ return x.id!==p.id; });
     DB.save(); render(); toast('削除しました','ok');
   }, '削除する');
 });
 action('impPrint', function(ds){
-  var p = byId(DB.data.improvementPlans, ds.id);
+  var p = byId(DB.data.improvementPlans, ds.id); if(!p) return;
   printHtml('改善計画 '+empName(p.employeeId),
     '<div class="card"><div class="card-head"><h2>改善計画　'+esc(empName(p.employeeId))+'</h2>'+
     '<span class="sub">'+esc(p.startDate)+' 〜 '+esc(p.endDate)+'</span></div><div class="card-body"><dl class="kv">'+
@@ -6330,13 +6360,29 @@ action('dataImport', function(){
 });
 
 action('dataClear', function(){
+  /* 共有中は、削除がそのまま共有先へ反映され、チーム全員分のデータが消える。
+     何が消えるのかを必ず伝え、取り消せないので直前にバックアップを自動保存する。 */
+  var shared = (typeof SYNC !== 'undefined' && SYNC.cfg.mode !== 'local');
   confirmDialog('全データの削除',
     'このアプリに保存されているすべてのデータ（社員・目標・KPI・1on1・評価・報告）を削除します。\n'+
+    (shared
+      ? '現在「'+syncModeLabel()+'」で共有しているため、共有先にあるチーム全員分のデータも削除されます。\n'+
+        '他のメンバーの端末からも、次の同期のときに消えます。\n'
+      : '')+
     'この操作は取り消せません。\n\n先に「バックアップを保存」でファイルに書き出すことを強くおすすめします。',
     function(){
-      confirmDialog('最終確認','本当に全データを削除しますか？', function(){
-        DB.reset(); render(); toast('全データを削除しました','ok');
-      }, '削除する');
+      confirmDialog('最終確認',
+        shared ? '本当に全データを削除しますか？\n共有先のチーム全員分のデータも消えます。'
+               : '本当に全データを削除しますか？',
+        function(){
+          /* 取り消せない操作なので、削除の直前にバックアップを書き出しておく */
+          try{
+            var nm = (DB.data.settings.companyName||'組織運営').replace(/[\\/:*?"<>|]/g,'');
+            download(nm+'_削除前バックアップ_'+todayStr()+'.json', JSON.stringify(DB.data, null, 2), 'application/json');
+          }catch(e){}
+          DB.reset(); render();
+          toast('全データを削除しました（削除前のバックアップを保存しました）','ok');
+        }, '削除する');
     }, '次へ');
 });
 
@@ -6362,7 +6408,7 @@ action('dataCsvAll', function(){
       });
     });
     downloadCsv('週次KPI_全期間_'+todayStr()+'.csv', rows);
-    toast('12種類のCSVを書き出しました','ok');
+    toast('13本のCSVを書き出しました','ok');
   }, 3600);
 });
 
@@ -7756,10 +7802,17 @@ action('capRuleSave', function(){
 action('capQuick', function(){
   var period = currentCapPeriod() || quarterOf(todayStr());
   var sum = capitalSummary(period);
+  /* 初期値は「まとめ」の行だけから作る。
+     明細で入れた分まで足してしまうと、開いて保存するたびに二重に加算されてしまう。 */
+  function rollupAmount(kind){
+    return spendsOf(period).filter(function(s){ return s.rollup && s.kind === kind; })
+      .reduce(function(a, s){ return a + num(s.amount, 0); }, 0);
+  }
   openForm({
     title:'この期の数字を入れる', wide:true,
     intro:'<b>会計ソフトから、4つの数字を写すだけです。</b>'+
-          '1件ずつ記録する必要はありません。四半期に一度、ここを更新してください。',
+          '1件ずつ記録する必要はありません。四半期に一度、ここを更新してください。'+
+          '<br>金額は「明細で記録する」で入れた分を含みません。まとめて入れる分だけを書いてください。',
     fields:[
       { key:'label',    label:'期', required:true, placeholder:'例：2026-Q3',
         hint:'四半期でも年度でも構いません。' },
@@ -7772,8 +7825,8 @@ action('capQuick', function(){
       { key:'nonbiz',   label:'事業と関係ない支出（円）', type:'number',
         hint:'社用車、会員権など。ここを正直に分けることが、この画面のいちばんの価値です。' }
     ],
-    value:{ label:period, profit:sum.profit||'', reinvest:sum.reinvest||'',
-            venture:sum.venture||'', nonbiz:sum.nonbiz||'' },
+    value:{ label:period, profit:sum.profit||'', reinvest:rollupAmount('reinvest')||'',
+            venture:rollupAmount('venture')||'', nonbiz:rollupAmount('nonbiz')||'' },
     submitLabel:'保存する',
     onSubmit:function(v){
       var c = DB.data.capital;
@@ -8398,6 +8451,7 @@ var SYNC = {
   message:'',
   lastPulledAt:'',     /* 最後に取り込んだ相手側の更新時刻 */
   lastPushedAt:'',
+  dirty:false,         /* まだ共有先へ送れていない変更が手元にあるか */
   rev:0,
   timer:null,
   saveTimer:null,
@@ -8473,6 +8527,7 @@ function syncApply(payload, from){
   DB.data = mergeDefaults(payload.data, emptyData());
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data)); }catch(e){}
   SYNC.lastPulledAt = payload.updatedAt || nowIso();
+  SYNC.dirty = false;
   SYNC.message = (from||'共有先')+'から取り込みました（'+fmtJp(payload.updatedAt)+
                  (payload.updatedBy?'／'+payload.updatedBy:'')+'）';
   return true;
@@ -8506,8 +8561,7 @@ function folderPick(){
     SYNC.dirHandle = h;
     return idbPut('dirHandle', h);
   }).then(function(){
-    SYNC.cfg.mode = 'folder'; syncSaveCfg();
-    return folderSync(true);
+    return folderFirstSync();
   }).catch(function(e){
     if(e && e.name === 'AbortError') return false;
     SYNC.state='error'; SYNC.message = 'フォルダを開けませんでした：'+(e&&e.message||e);
@@ -8546,8 +8600,67 @@ function folderWrite(){
     }).then(function(){
       SYNC.lastPushedAt = DB.data.meta.updatedAt;
       SYNC.lastPulledAt = DB.data.meta.updatedAt;
+      SYNC.dirty = false;
       return true;
     });
+}
+
+/* 初回の接続。共有フォルダにすでにチームのデータがあるときは、
+   どちらを残すかを必ず選んでもらう（黙って上書きしない）。
+   選び終わるまで共有フォルダのモードには切り替えない。 */
+function folderLink(){ SYNC.cfg.mode = 'folder'; syncSaveCfg(); }
+
+function folderFirstSync(){
+  return folderEnsure().then(function(ok){
+    if(!ok) return false;
+    return folderRead().then(function(remote){
+      /* 共有フォルダが空 → こちらの内容を最初のデータとして置く */
+      if(!remote || !remote.data){
+        return folderWrite().then(function(){
+          folderLink();
+          SYNC.state = 'ready';
+          SYNC.message = '共有フォルダへ保存しました（'+fmtJp(nowIso())+'）';
+          syncPaint();
+          return 'push';
+        });
+      }
+      return new Promise(function(res){
+        openModal({
+          title:'共有フォルダには、すでにデータがあります',
+          body:'<div style="font-size:13.5px;line-height:1.8;">'+
+               '共有フォルダの更新：'+esc(fmtJp(remote.updatedAt))+
+               (remote.updatedBy?'（'+esc(remote.updatedBy)+'）':'')+'<br>'+
+               'このパソコンの更新：'+esc(fmtJp(DB.data.meta.updatedAt))+'<br><br>'+
+               'どちらの内容を残しますか。<br>'+
+               '<b>取り込む</b>を選ぶと、このパソコンの内容が共有フォルダの内容に置き換わります。<br>'+
+               '<b>自分の内容で上書きする</b>を選ぶと、共有フォルダにあるチーム全員分のデータが消えます。'+
+               '</div>',
+          foot:'<button type="button" class="btn danger" id="fsPush">自分の内容で上書きする</button>'+
+               '<button type="button" class="btn primary" id="fsPull">共有フォルダの内容を取り込む（推奨）</button>',
+          onMount:function(root){
+            root.beforeClose = function(){ res(false); return true; };
+            root.querySelector('#fsPull').addEventListener('click', function(){
+              closeModal();
+              syncApply(remote, '共有フォルダ');
+              folderLink();
+              SYNC.state = 'ready'; syncPaint(); render();
+              res('pull');
+            });
+            root.querySelector('#fsPush').addEventListener('click', function(){
+              closeModal();
+              folderWrite().then(function(){
+                folderLink();
+                SYNC.state = 'ready';
+                SYNC.message = '共有フォルダへ保存しました（'+fmtJp(nowIso())+'）';
+                syncPaint();
+                res('push');
+              });
+            });
+          }
+        });
+      });
+    });
+  });
 }
 
 /* 取り込みと書き出しをまとめて行う。force=true なら競合時に自分を優先 */
@@ -8562,6 +8675,13 @@ function folderSync(silent){
 
       var rt = remote.updatedAt || '';
       var mine = DB.data.meta.updatedAt || '';
+      /* まだ共有先へ送れていない変更が手元にあるときは、時刻では勝ち負けを決めない。
+         パソコンの時計が数分ずれているだけで、いま入力した内容が黙って消えてしまうため。 */
+      if(SYNC.dirty){
+        if(rt === SYNC.lastPulledAt) return folderWrite().then(function(){ return 'push'; });
+        syncConflictDialog(remote);
+        return 'conflict';
+      }
       if(rt === SYNC.lastPulledAt && mine > (SYNC.lastPushedAt||'')) return folderWrite().then(function(){ return 'push'; });
       if(rt > mine){ syncApply(remote, '共有フォルダ'); return 'pull'; }
       if(rt < mine) return folderWrite().then(function(){ return 'push'; });
@@ -8569,7 +8689,9 @@ function folderSync(silent){
       return 'same';
     });
   }).then(function(r){
-    if(r){
+    if(r==='conflict'){
+      SYNC.state='error'; SYNC.message='他の人が先に更新しています。';
+    }else if(r){
       SYNC.state='ready';
       if(r==='pull'){ if(!silent) toast(SYNC.message,'ok'); render(); }
       else if(r==='push'){ SYNC.message = '共有フォルダへ保存しました（'+fmtJp(nowIso())+'）'; }
@@ -8643,6 +8765,7 @@ function serverPush(force){
       SYNC.rev = j.rev||SYNC.rev+1;
       SYNC.lastPushedAt = DB.data.meta.updatedAt;
       SYNC.lastPulledAt = DB.data.meta.updatedAt;
+      SYNC.dirty = false;
       SYNC.state='ready'; SYNC.message='共有サーバーへ保存しました（'+fmtJp(nowIso())+'）';
       syncPaint();
       return true;
@@ -8679,6 +8802,10 @@ function syncNow(silent){
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(meta){
         if(!meta) return serverPull(silent);
+        /* まだ共有先へ送れていない変更が手元にあるときは、時刻では勝ち負けを決めない。
+           パソコンの時計が数分ずれているだけで、いま入力した内容が黙って消えてしまうため。
+           このときは版数（rev）で競合を見てもらう。 */
+        if(SYNC.dirty) return serverPush(false);
         /* 先に版数を合わせておく。これをしないと、保存のたびに競合と判定されてしまう */
         if(typeof meta.rev === 'number') SYNC.rev = meta.rev;
         var mine = DB.data.meta.updatedAt||'';
@@ -8698,6 +8825,7 @@ function syncNow(silent){
 
 /* 保存のたびに呼ばれる（連打しても1回にまとめる） */
 function syncAfterSave(){
+  SYNC.dirty = true;
   if(SYNC.cfg.mode==='local' || !SYNC.cfg.auto) return;
   if(typeof setTimeout === 'undefined') return;
   clearTimeout(SYNC.saveTimer);
