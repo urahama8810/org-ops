@@ -24,7 +24,7 @@ VIEWS.dashboard = {
         '<button class="btn primary" data-act="go" data-view="settings">① 設定を開く</button>'+
         '<button class="btn" data-act="go" data-view="employees">② 社員を登録する</button>'+
         '<button class="btn" data-act="loadDemo">操作を試す（サンプルデータを入れる）</button>'+
-        '<a class="btn" href="'+GUIDE_URL+'" target="_blank" rel="noopener">使い方レクチャーを見る（動画・約15分）</a>'+
+        '<a class="btn" href="'+GUIDE_URL+'" target="_blank" rel="noopener">使い方レクチャーを見る（動画・約16分）</a>'+
         '</div></div>';
     }
 

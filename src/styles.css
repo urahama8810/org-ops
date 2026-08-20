@@ -309,6 +309,8 @@ legend{font-size:12px;font-weight:700;color:var(--accent);padding:0 6px;}
   .side-foot{display:none;}
   .topbar{padding:11px 14px;top:auto;position:static;}
   .topbar h1{font-size:17px;}
+  .topbar .spacer{display:none;}
+  #topMeta{display:flex;flex-wrap:wrap;gap:5px;}
   #view{padding:14px 14px 48px;}
   .card-head{padding:11px 13px;}
   .card-body{padding:13px;}
