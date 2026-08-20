@@ -1,10 +1,12 @@
 /* ============================================================
-   18-capital.js  資本配分と関係者ガバナンス
+   18-capital.js  お金の使い道と、社外の関係者
    ------------------------------------------------------------
-   構造分析レポート 第11章 第4層
-     ・利益が出た時点で、人材・営業・商品・仕組みへの再投資枠を先取りする
-     ・新規事業や非事業支出には、年間上限と承認ルールを設ける
-     ・関係者は、利害・権限・責任・成果物・知的財産・撤退条件を明文化する
+     ・利益が出た時点で、人材・営業・商品・仕組みへ戻す枠を先に取る
+     ・新しい取り組みと、事業と関係ない支出には、年間の上限と承認を決める
+     ・社外の関係者とは、狙い・権限・責任・成果物・終わり方を文書にする
+
+   入力は四半期に一度、4つの数字を写すだけで済むようにしてある。
+   1件ずつ記録したい場合は「明細で記録する」から入力できる。
    ============================================================ */
 
 var capTab = 'capital';
@@ -64,13 +66,13 @@ function governanceRate(){
 
 /* ---------- 画面 ---------- */
 VIEWS.capital = {
-  title:'資本配分・関係者',
+  title:'お金の使い道',
   desc:'利益を組織能力へ戻す仕組みと、関係者との期待値・出口の設計です。',
   render:function(){
     var h = '';
     h += '<div class="tabs">'+
-      '<div class="tab '+(capTab==='capital'?'active':'')+'" data-act="capTab" data-t="capital">資本配分・再投資</div>'+
-      '<div class="tab '+(capTab==='partner'?'active':'')+'" data-act="capTab" data-t="partner">関係者台帳 ('+DB.data.partners.length+')</div>'+
+      '<button type="button" class="tab '+(capTab==='capital'?'active':'')+'" data-act="capTab" data-t="capital">資本配分・再投資</button>'+
+      '<button type="button" class="tab '+(capTab==='partner'?'active':'')+'" data-act="capTab" data-t="partner">関係者台帳 ('+DB.data.partners.length+')</button>'+
       '</div>';
     h += capTab==='capital' ? renderCapital() : renderPartners();
     return h;
@@ -85,19 +87,23 @@ function renderCapital(){
   var h = '';
 
   h += '<div class="notice">'+
-    '<b>企業成長の本質は、利益を人材・営業・商品・仕組みへ戻し、組織能力を上げ、その能力が次の利益を作る複利です。</b>'+
-    '利益を本業の外へ流すと、会計上の利益は出ていても、組織能力の複利が止まります。'+
-    'だから「余ったら投資する」ではなく、<b>先に再投資枠を取り、残りの用途を判断</b>します。'+
+    '<b>利益を人材・営業・商品・仕組みへ戻すと、組織の力が上がり、それが次の利益をつくります。</b>'+
+    '利益を本業の外へ回すと、帳簿では黒字でも、この積み上がりが止まります。'+
+    'だから「余ったら投資する」ではなく、<b>先に戻す枠を取って、残りの使い道を決めます</b>。'+
+    '<br>入力は四半期に一度で十分です。会計ソフトの数字を4つ写すだけにしてあります。'+
     '</div>';
 
   h += '<div class="grid c4" style="margin-bottom:16px;">'+
-    tile('対象期', period||'<small>未設定</small>', period?'利益 '+yen(sum.profit)+'円':'期と利益を登録してください','accent')+
-    tile('再投資率（実績）', sum.rate===null?'—':sum.rate+'<small>%</small>',
+    tile('対象の期', period||'<small>未登録</small>',
+         period ? '利益 '+yen(sum.profit)+'円'
+                : '<div class="foot">'+btn('この期の数字を入れる','capQuick',{},'primary','plus')+'</div>',
+         'accent','calendar')+
+    tile('本業へ戻した割合', sum.rate===null?'—':sum.rate+'<small>%</small>',
          '目標 '+num(rule.reinvestRate,50)+'% ／ '+yen(sum.reinvest)+'円',
-         sum.rate===null?'':(sum.rate>=num(rule.reinvestRate,50)?'ok':'bad'))+
-    tile('新規案件への支出', yen(sum.venture)+'<small>円</small>', '1枚企画書と撤退条件が前提', sum.venture?'warn':'')+
+         sum.rate===null?'':(sum.rate>=num(rule.reinvestRate,50)?'ok':'bad'),'wallet')+
+    tile('新しい取り組みへ', yen(sum.venture)+'<small>円</small>', '企画書と撤退条件が前提', sum.venture?'warn':'','sparkle')+
     tile('事業と関係ない支出', yen(sum.nonbiz)+'<small>円</small>',
-         num(rule.nonBizCap,0)>0 ? '年間上限 '+yen(rule.nonBizCap)+'円' : '年間上限が未設定',
+         num(rule.nonBizCap,0)>0 ? '年間の上限 '+yen(rule.nonBizCap)+'円' : '年間の上限が未設定',
          (num(rule.nonBizCap,0)>0 && sum.nonbiz>num(rule.nonBizCap,0))?'bad':(sum.nonbiz?'warn':'ok'))+
     '</div>';
 
@@ -121,7 +127,7 @@ function renderCapital(){
     fieldHtml({key:'nonBizCap', label:'事業と関係ない支出の年間上限（円）', type:'number', min:0,
                hint:'0のままだと上限なしになります。先に決めておくと、その都度の判断が要らなくなります。'}, rule.nonBizCap)+
     fieldHtml({key:'approver', label:'非事業支出・新規案件の承認者',
-               hint:'社長本人だけで完結しない相手を置くほど、防波堤として働きます。'}, rule.approver)+
+               hint:'決める人が1人だけにならないようにすると、見落としが減ります。'}, rule.approver)+
     fieldHtml({key:'note', label:'補足', type:'textarea', rows:2, full:true}, rule.note)+
     '</div>'+
     '<div class="btn-row"><button class="btn primary" data-act="capRuleSave">ルールを保存</button></div>',
@@ -160,8 +166,15 @@ function renderCapital(){
         return r.approvedBy ? esc(r.approvedBy) : (r.kind==='reinvest'?'<span class="small muted">—</span>':badge('承認なし','warn')); } },
     { label:'', cls:'actions', width:'120px', render:function(r){
         return btn('編集','capSpendEdit',{id:r.id})+' '+btn('削除','capSpendDel',{id:r.id},'danger'); } }
-  ], spends, { emptyTitle:'支出の記録がありません', emptyText:'再投資と、事業と関係ない支出を分けて記録すると、複利が働いているか見えます。' }),
-  { tools: btn('支出を記録','capSpendNew',{},'primary')+' '+btn('CSV','capCsv',{}) });
+  ], spends, { emptyTitle:'まだ記録がありません',
+    emptyText:'四半期に一度、4つの数字を入れるだけで十分です。1件ずつ記録したい場合は「明細で記録する」から入力できます。',
+    emptyIcon:'wallet',
+    emptyAction: btn('この期の数字を入れる','capQuick',{},'primary','plus') }),
+  { icon:'wallet',
+    sub:'四半期に一度、数字を入れるだけで大丈夫です',
+    tools: btn('この期の数字を入れる','capQuick',{},'primary','plus')+' '+
+           btn('明細で記録する','capSpendNew',{},'','edit')+' '+
+           btn('CSV','capCsv',{},'','download') });
 
   return h;
 }
@@ -170,9 +183,10 @@ function renderPartners(){
   var h = '';
   var gr = governanceRate();
   h += '<div class="notice">'+
-    '<b>性善説そのものが悪いのではありません。</b>問題は、信頼することと、仕組みを作らないことを混同することです。'+
-    '健全な関係は、信頼しながら、相手の利害を理解し、期待値を言語化し、契約し、定期確認し、問題が起きたときの出口を決めておきます。'+
-    '<b>「信頼できる人だから契約不要」ではなく、「信頼を長く維持するために契約する」</b>と考えてください。'+
+    '<b>相手を信じることと、取り決めを作らないことは、別のことです。</b>'+
+    '長く続く関係では、信頼したうえで、相手が何を得たいのかを理解し、期待していることを言葉にし、'+
+    '文書に残し、定期的に確認し、うまくいかなかったときの終わり方まで決めてあります。'+
+    '<b>「信頼できる相手だから取り決めは要らない」ではなく、「信頼を長く保つために取り決めを残す」</b>と考えてください。'+
     '</div>';
 
   var today = todayStr();
@@ -225,6 +239,51 @@ action('capRuleSave', function(){
   DB.save(); render(); toast('再投資ルールを保存しました','ok');
 });
 
+/* 四半期に一度、4つの数字を写すだけの入力。
+   入れた数字は「まとめ」1件として記録に残す（明細と混ざらないように印を付ける）。 */
+action('capQuick', function(){
+  var period = currentCapPeriod() || quarterOf(todayStr());
+  var sum = capitalSummary(period);
+  openForm({
+    title:'この期の数字を入れる', wide:true,
+    intro:'<b>会計ソフトから、4つの数字を写すだけです。</b>'+
+          '1件ずつ記録する必要はありません。四半期に一度、ここを更新してください。',
+    fields:[
+      { key:'label',    label:'期', required:true, placeholder:'例：2026-Q3',
+        hint:'四半期でも年度でも構いません。' },
+      { key:'profit',   label:'この期の利益（円）', type:'number', required:true,
+        hint:'税引前の利益でかまいません。おおよその数字で十分です。' },
+      { key:'reinvest', label:'人材・営業・商品・仕組みへ使った額（円）', type:'number',
+        hint:'研修、採用、広告、開発、業務システムなど。本業の力を上げるために使った合計。' },
+      { key:'venture',  label:'新しい取り組みへ使った額（円）', type:'number',
+        hint:'まだ本業になっていない、新規の事業や案件に使った合計。' },
+      { key:'nonbiz',   label:'事業と関係ない支出（円）', type:'number',
+        hint:'社用車、会員権など。ここを正直に分けることが、この画面のいちばんの価値です。' }
+    ],
+    value:{ label:period, profit:sum.profit||'', reinvest:sum.reinvest||'',
+            venture:sum.venture||'', nonbiz:sum.nonbiz||'' },
+    submitLabel:'保存する',
+    onSubmit:function(v){
+      var c = DB.data.capital;
+      /* 期（利益） */
+      var p = c.periods.filter(function(x){ return x.label === v.label; })[0];
+      if(p) p.profit = v.profit;
+      else c.periods.push({ id:uid('cp'), label:v.label, profit:v.profit, note:'' });
+      /* まとめの3行を作り直す（明細で入れたものは残す） */
+      c.spends = c.spends.filter(function(x){ return !(x.rollup && x.period === v.label); });
+      [['reinvest','人材・営業・商品・仕組みへ'],
+       ['venture','新しい取り組みへ'],
+       ['nonbiz','事業と関係ない支出']].forEach(function(pair){
+        var amt = num(v[pair[0]], 0);
+        if(!amt) return;
+        c.spends.push({ id:uid('sp'), rollup:true, date:todayStr(), period:v.label,
+                        title:pair[1]+'（'+v.label+' まとめ）', kind:pair[0], amount:amt, note:'' });
+      });
+      DB.save(); render(); toast('保存しました','ok');
+    }
+  });
+});
+
 action('capPeriodNew', function(){
   openForm({
     title:'期を追加する',
@@ -269,7 +328,7 @@ var SPEND_FORM = function(){
     { key:'title', label:'内容', required:true, full:true },
     { key:'kind', label:'区分', type:'select', required:true,
       options:SPEND_KINDS.map(function(k){ return {value:k.key,label:k.label}; }),
-      hint:'「事業と関係ない支出」を正直に分けることが、この表の価値です。' },
+      hint:'「事業と関係ない支出」を正直に分けることが、この表のいちばんの価値です。' },
     { key:'category', label:'再投資の内訳', type:'select',
       options:[{value:'',label:'（再投資の場合のみ選択）'}].concat(
         REINVEST_CATEGORIES.map(function(c){ return {value:c.key,label:c.label}; })) },
@@ -280,7 +339,7 @@ var SPEND_FORM = function(){
 };
 action('capSpendNew', function(){
   openForm({
-    title:'支出を記録する', wide:true,
+    title:'支出を1件ずつ記録する', wide:true,
     fields:SPEND_FORM(),
     value:{ date:todayStr(), period:currentCapPeriod(), kind:'reinvest' },
     onSubmit:function(v){
@@ -334,8 +393,8 @@ var PARTNER_FORM = function(){
 action('parNew', function(){
   openForm({
     title:'関係者を追加する', wide:true,
-    intro:'<b>相手の利害（相手は何を得たいのか）を書けない相手とは、必ずどこかで期待値がずれます。</b>'+
-          '想定外が起きてから怒るのではなく、始める前に、利害と出口を言葉にしておきます。',
+    intro:'<b>相手が何を得たいのかを書けない相手とは、どこかで期待のずれが出ます。</b>'+
+          '想定と違ったときに慌てないよう、始める前に、お互いの狙いと終わり方を言葉にしておきます。',
     fields:PARTNER_FORM(),
     value:{ kind:'スポンサー', startDate:todayStr(), checkCycle:'3か月に1回' },
     onSubmit:function(v){
@@ -353,7 +412,7 @@ action('parCheck', function(ds){
   var rec = byId(DB.data.partners, ds.id); if(!rec) return;
   openForm({
     title:'定期確認の記録',
-    intro:'<b>期待値のズレは、早い段階なら会話で直せます。</b>放置すると、裏切られたという感情の問題に変わります。',
+    intro:'<b>期待していることのズレは、早い段階なら話し合いで直せます。</b>そのままにすると、感情の行き違いに変わっていきます。',
     fields:[
       { key:'note', label:'確認した内容・出てきたズレ', type:'textarea', rows:3, full:true, required:true },
       { key:'nextCheck', label:'次回の確認日', type:'date', required:true }

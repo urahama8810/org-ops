@@ -224,8 +224,8 @@ const formTests = [
   ['確認ダイアログ（一括作成）', ()=>ACTIONS.evalCreateAll({})],
   ['確認ダイアログ（標準職種）', ()=>ACTIONS.scCreateDefaults({})],
   ['確認ダイアログ（全削除）', ()=>ACTIONS.dataClear({})],
-  ['委任カードの作成', ()=>ACTIONS.dlgNew({})],
-  ['委任カードの編集', ()=>ACTIONS.dlgEdit({id:DB.data.delegations[0].id})],
+  ['仕事を渡す操作', ()=>ACTIONS.dlgNew({})],
+  ['任せた仕事の編集', ()=>ACTIONS.dlgEdit({id:DB.data.delegations[0].id})],
   ['中間確認の記録', ()=>ACTIONS.dlgCheck({id:DB.data.delegations[0].id})],
   ['委任の終了', ()=>ACTIONS.dlgClose({id:DB.data.delegations[0].id})],
   ['重大決裁の登録', ()=>ACTIONS.decNew({})],
@@ -276,28 +276,44 @@ t('改善計画を作って週次確認を追加する', ()=>{
   ACTIONS.impClose({id:'ip1'}); ctx.closeAllModals();
 });
 
-console.log('\n■ 負のシステム対策（構造分析レポート）');
-t('24時間ルール：冷却期間が残っていると確定できない', ()=>{
+console.log('\n■ 決め方・任せ方・お金の使い方');
+t('24時間ルール：待ち時間が残っていると確定できない', ()=>{
   const now = new Date();
   const rec = { title:'x', kind:'people', raisedAt:new Date(now.getTime()-2*3600000).toISOString(),
-                emotion:0, devilName:'A', devilNote:'反対理由', lossNow:'a', lossWait:'b' };
+                devilName:'A', devilNote:'反対理由', lossNow:'a', lossWait:'b' };
   const r = ctx.decisionCanDecide(rec);
   if(r.ok) throw new Error('2時間後は確定できないはず');
-  if(!r.reasons.some(x=>x.indexOf('冷却期間')>=0)) throw new Error('理由に冷却期間が含まれない: '+r.reasons.join('/'));
+  if(!r.reasons.some(x=>x.indexOf('待ち時間')>=0)) throw new Error('理由に待ち時間が含まれない: '+r.reasons.join('/'));
 });
 t('24時間ルール：条件がそろえば確定できる', ()=>{
   const now = new Date();
   const rec = { title:'x', kind:'people', raisedAt:new Date(now.getTime()-30*3600000).toISOString(),
-                emotion:0, devilName:'A', devilNote:'反対理由', lossNow:'a', lossWait:'b' };
+                devilName:'A', devilNote:'反対理由', lossNow:'a', lossWait:'b' };
   if(!ctx.decisionCanDecide(rec).ok) throw new Error('30時間後・全項目記入なら確定できるはず');
 });
-t('強い怒りのまま登録した決裁は、時間が経っても確定できない', ()=>{
+t('反対意見が未記録なら、時間が経っても確定できない', ()=>{
   const now = new Date();
   const rec = { title:'x', kind:'people', raisedAt:new Date(now.getTime()-30*3600000).toISOString(),
-                emotion:2, cooled:false, devilName:'A', devilNote:'b', lossNow:'a', lossWait:'b' };
-  if(ctx.decisionCanDecide(rec).ok) throw new Error('落ち着いて見直すまでは確定できないはず');
-  rec.cooled = true;
-  if(!ctx.decisionCanDecide(rec).ok) throw new Error('見直し済みなら確定できるはず');
+                devilName:'A', devilNote:'', lossNow:'a', lossWait:'b' };
+  if(ctx.decisionCanDecide(rec).ok) throw new Error('反対意見が空なら確定できないはず');
+  rec.devilNote = '費用が想定より膨らむ可能性がある';
+  if(!ctx.decisionCanDecide(rec).ok) throw new Error('記録されていれば確定できるはず');
+});
+t('決定の記録に、心理状態を残す項目がない', ()=>{
+  if(typeof ctx.EMOTION_LEVELS !== 'undefined') throw new Error('EMOTION_LEVELS が残っている');
+  const src = fs.readFileSync(path.join(DIR,'16-decisions.js'),'utf8');
+  if(/emotion/i.test(src)) throw new Error('16-decisions.js に emotion が残っている');
+});
+t('社員台帳に、給与と離職リスクの項目がない', ()=>{
+  const src = fs.readFileSync(path.join(DIR,'05-employees.js'),'utf8');
+  if(/salary|retentionRisk/.test(src)) throw new Error('05-employees.js に salary / retentionRisk が残っている');
+});
+t('指摘の文面に、特定の人を評価する語が混ざらない', ()=>{
+  const bad = ['社長だけ','離職リスク','放置','激昂','支配'];
+  ctx.buildAlerts().forEach(a=>{
+    const line = (a.title||'')+' '+(a.detail||'');
+    bad.forEach(w=>{ if(line.indexOf(w)>=0) throw new Error('「'+w+'」が指摘文にある: '+line); });
+  });
 });
 t('48時間ルール：1枚企画書が埋まっていないと着手できない', ()=>{
   const v = DB.data.ventures.filter(x=>!x.gain)[0];
@@ -305,16 +321,16 @@ t('48時間ルール：1枚企画書が埋まっていないと着手できな�
   if(ctx.ventureCanStart(v).ok) throw new Error('未記入なのに着手できてしまう');
   if(ctx.ventureFill(v).rate === 100) throw new Error('記入率の計算が誤り');
 });
-t('委任カード：6項目の記入率と中間確認の状態', ()=>{
+t('任せた仕事：6項目の記入率と中間確認の状態', ()=>{
   const full = DB.data.delegations[0];
   if(ctx.delegationFill(full).rate !== 100) throw new Error('6項目そろって100%のはず: '+ctx.delegationFill(full).rate);
   const thin = DB.data.delegations[2];
   if(ctx.delegationFill(thin).rate === 100) throw new Error('空欄があるのに100%');
   if(ctx.delegationState(thin).key !== 'noCheck') throw new Error('中間確認日なしを検知できていない: '+ctx.delegationState(thin).key);
 });
-t('委任カード：中間確認の実施率が集計される', ()=>{
+t('任せた仕事：中間確認の実施率が集計される', ()=>{
   const st = ctx.delegationStats();
-  if(st.total !== 3) throw new Error('件数='+st.total);
+  if(st.total !== 4) throw new Error('件数='+st.total);
   if(st.checkRate === null || st.checkRate < 0 || st.checkRate > 100) throw new Error('実施率='+st.checkRate);
 });
 t('先行指標6領域がすべて計算できる', ()=>{
@@ -366,7 +382,7 @@ t('アラートの文面に内部IDが混ざらない', ()=>{
 });
 t('新しいアラートが検出される', ()=>{
   const titles = ctx.buildAlerts().map(a=>a.title).join('｜');
-  ['中間確認日が未設定','反対意見の確認','契約・合意が文書化されていない','離職リスクが高い'].forEach(k=>{
+  ['途中の確認日が決まっていない','反対意見の確認','契約・合意が文書化されていない','これからの役割'].forEach(k=>{
     if(titles.indexOf(k) < 0) throw new Error('検出されていない: '+k);
   });
 });
@@ -407,6 +423,21 @@ t('共有データの受け取りでデータが置き換わる', ()=>{
 });
 
 console.log('\n■ 画面遷移');
+t('わたしの画面：自分を選ぶ前は選択の案内が出る', ()=>{
+  ctx.setMyEmpId('');
+  const html = ctx.VIEWS.me.render();
+  if(html.indexOf('あなたが誰かを選んで') < 0 && html.indexOf('まだメンバーが登録されていません') < 0)
+    throw new Error('選択の案内が出ていない');
+});
+t('わたしの画面：自分を選ぶと、自分の情報だけが出る', ()=>{
+  const emp = DB.data.employees.filter(e=>!e.isTop)[0];
+  ctx.setMyEmpId(emp.id);
+  const html = ctx.VIEWS.me.render();
+  if(html.indexOf(emp.name) < 0) throw new Error('自分の名前が出ていない');
+  const other = DB.data.employees.filter(e=>e.id !== emp.id && !e.isTop)[0];
+  if(other && html.indexOf('<b>'+other.name+'</b>') >= 0) throw new Error('他の人の情報が混ざっている');
+  ctx.setMyEmpId('');
+});
 t('全ナビ項目に対応する画面がある', ()=>{
   ctx.NAV.forEach(g=>g.items.forEach(it=>{
     if(!VIEWS[it.key]) throw new Error('画面が存在しない: '+it.key);

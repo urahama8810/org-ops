@@ -283,7 +283,7 @@ function serverPush(force){
 function syncConflictDialog(remote){
   openModal({
     title:'他の人が先に更新しています',
-    body:'<div class="alert warn"><span class="ic">▲</span><div>'+
+    body:'<div class="alert warn"><span class="ic">'+ic('info',15)+'</span><div class="body">'+
       '<div class="t">共有先のデータが、あなたが開いたあとに更新されました</div>'+
       '<div class="d">相手の更新：'+esc(fmtJp(remote&&remote.updatedAt))+
       (remote&&remote.updatedBy?'（'+esc(remote.updatedBy)+'）':'')+'</div></div></div>'+

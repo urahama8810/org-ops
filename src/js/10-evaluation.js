@@ -1,5 +1,5 @@
 /* ============================================================
-   10-evaluation.js  評価制度（指示書 第10・12・13章／シート6）
+   10-evaluation.js  評価制度
    ============================================================ */
 
 var evalSel = { period:null };
@@ -32,7 +32,7 @@ VIEWS.evaluations = {
         return '<div style="display:flex;gap:8px;align-items:center;padding:3px 0;">'+
           '<span style="width:180px;">'+esc(i.label)+'</span>'+progressBar(i.weight)+
           '<b class="mono" style="width:44px;text-align:right;">'+i.weight+'%</b></div>'; }).join(''),
-      {sub:'指示書 第10章'})+'</div>';
+      {})+'</div>';
     h += '<div>'+card('4段階の定義',
       '<div class="rating-scale">'+RATING_DEFS.map(function(r){
         return '<div class="r"><b>'+r.v+'</b><div>'+esc(r.desc)+'</div></div>'; }).join('')+'</div>'+
@@ -49,7 +49,7 @@ VIEWS.evaluations = {
         '第1四半期は評価のみを行い、基準と評価者差を修正します。第2四半期以降、制度が安定した場合に賞与の一部への連動を検討してください。'+
         '報酬連動の前に、就業規則・賃金規程との整合を社労士等へ確認します。</div>';
     }else{
-      h += '<div class="alert '+(d.settings.laborCheckDone?'warn':'bad')+'"><span class="ic">!</span><div>'+
+      h += '<div class="alert '+(d.settings.laborCheckDone?'warn':'bad')+'"><span class="ic">'+ic('alert',15)+'</span><div class="body">'+
         '<div class="t">報酬連動が有効になっています</div>'+
         '<div class="d">'+(d.settings.laborCheckDone?
           '就業規則等の確認済みとして記録されています。運用は慎重に。':
@@ -123,7 +123,7 @@ VIEWS.evaluations = {
     if(low.length){
       h += card('評価2以下の社員（'+low.length+'名）',
         '<div class="help-block">評価2は<b>翌月の改善項目を3つ以内</b>にします。評価1、または評価2が継続する場合は'+
-        '<b>30〜60日の改善計画</b>を作成してください（指示書 第13章）。</div>'+
+        '<b>30〜60日の改善計画</b>を作成してください。</div>'+
         tableHtml([
           {label:'社員', render:function(ev){ return esc(empName(ev.employeeId)); }},
           {label:'点数', cls:'num', render:function(ev){ return evalScore(ev).toFixed(2); }},
@@ -236,7 +236,7 @@ action('evalOpen', function(ds){
     oo.forEach(function(o){ (o.promises||[]).forEach(function(p){ promiseTotal++; if(p.done) promiseDone++; }); });
     var myReports = DB.data.reports.filter(function(r){ return r.reporterId === emp.id; });
     var lateReports = myReports.filter(function(r){ return reportDeadlineStatus(r).cls === 'bad'; });
-    refs = '<fieldset><legend>評価の根拠になる記録（社長の記憶ではなく、これを見る）</legend>'+
+    refs = '<fieldset><legend>評価のもとになる記録（記憶ではなく、この記録を見ます）</legend>'+
       '<div class="grid c4" style="gap:10px;">'+
         tile('担当KPIの行数', kpiRows.length+'', '週次KPI会議での担当','')+
         tile('1on1実施', oo.length+'<small>回</small>','','')+
@@ -254,29 +254,52 @@ action('evalOpen', function(ds){
   }
 
   var idx = evalStageIndex(ev);
+  /* 自己評価を書いている間は、上司の評価も調整メモも見えないようにする。
+     先に見えてしまうと、自己評価がそれに引きずられ、両者を突き合わせる意味がなくなる。 */
+  var stage = ev.stage || 'self';
+  var showMgr   = stage !== 'self';
+  var showCalib = (stage === 'calib' || stage === 'final' || stage === 'explained');
+  var showFinal = (stage === 'final' || stage === 'explained');
+
+  var stageNote = '';
+  if(!showMgr){
+    stageNote = '<div class="notice"><b>いまは自己評価の段階です。</b>'+
+      '上司の評価は、上司が入力して次の段階に進んだあとで表示されます。'+
+      '自分の記録（KPI・1on1・成果物）を見ながら、4段階の定義に照らして点数を付けてください。</div>';
+  }else if(!showFinal){
+    stageNote = '<div class="notice"><b>本人への説明内容は、確定後に表示されます。</b>'+
+      '調整の途中の記録は、決まってから伝えます。</div>';
+  }
+
   var body =
     '<div class="step-flow" style="margin-bottom:14px;">'+EVAL_STAGES.map(function(s,i){
       return '<span class="s '+(i<idx?'done':i===idx?'cur':'')+'">'+esc(s.label)+'</span>'; }).join('')+'</div>'+
+    stageNote+
     '<div class="help-block">配点：'+items.map(function(i){ return esc(i.label)+' '+i.weight+'%'; }).join(' ／ ')+
-      '<br>点数は<b>4段階の定義</b>に照らして付けます。「印象」ではなく、KPI・週次記録・1on1・成果物を根拠にします（指示書 第14章）。</div>'+
+      '<br>点数は<b>4段階の定義</b>に照らして付けます。印象ではなく、KPI・週次の記録・1on1・成果物を根拠にします。</div>'+
     refs+
     '<form id="evForm">'+
       section('① 自己評価', 'self', ev.selfScores, ev.selfComments, '本人が記入します。')+
-      section('② 直属上司評価', 'mgr', ev.scores, ev.comments, '評価者：'+(ev.evaluatorId?empName(ev.evaluatorId):'未設定'))+
+      (showMgr ? section('② 直属上司の評価', 'mgr', ev.scores, ev.comments,
+                         '評価する人：'+(ev.evaluatorId?empName(ev.evaluatorId):'未設定')) : '')+
+      (showMgr ?
       '<fieldset><legend>③ 根拠・調整・確定</legend>'+
         '<div class="field"><label>評価の根拠（必須）</label>'+
-          '<textarea name="evidence" rows="3" placeholder="例：受注8件（目標8件）、週次の対策3件すべて期限内完了、1on1の約束4件中4件達成">'+esc(ev.evidence||'')+'</textarea>'+
-          '<div class="hint">社長の記憶や直近の印象で変更しないこと。KPI・週次記録・1on1・成果物を根拠にします。</div></div>'+
-        '<div class="field"><label>管理職間の調整メモ</label>'+
-          '<textarea name="calibrationNote" rows="2" placeholder="評価者による甘辛の差をどう調整したか">'+esc(ev.calibrationNote||'')+'</textarea></div>'+
+          '<textarea name="evidence" rows="3" placeholder="例：受注8件（目標8件）、週次の対策3件すべて期限内に完了、1on1で決めたこと4件中4件が完了">'+esc(ev.evidence||'')+'</textarea>'+
+          '<div class="hint">記憶や直近の印象だけで動かさないようにします。KPI・週次の記録・1on1・成果物を根拠にします。</div></div>'+
+        (showCalib ?
+        '<div class="field"><label>評価者どうしの調整メモ</label>'+
+          '<textarea name="calibrationNote" rows="2" placeholder="評価する人による甘さ・辛さの差を、どう調整したか">'+esc(ev.calibrationNote||'')+'</textarea></div>' : '')+
+        (showFinal ?
         '<div class="field"><label>本人への説明内容</label>'+
-          '<textarea name="finalNote" rows="3" placeholder="良かった点、次に期待すること、翌期の重点（3つ以内）">'+esc(ev.finalNote||'')+'</textarea></div>'+
-      '</fieldset>'+
+          '<textarea name="finalNote" rows="3" placeholder="良かった点、次に期待すること、来期の重点（3つ以内）">'+esc(ev.finalNote||'')+'</textarea></div>' : '')+
+      '</fieldset>' : '')+
     '</form>';
 
   openModal({
     title:'評価シート：'+empName(ev.employeeId)+'（'+ev.period+'）', wide:true,
     headNote:(ev.type==='manager'?'管理職':'一般社員')+'　'+EVAL_STAGES[idx].label,
+    wide:true,
     body:body,
     foot:'<button class="btn left" data-act="evalPrint" data-id="'+ev.id+'">印刷</button>'+
          '<button class="btn" data-modal-close>閉じる</button>'+

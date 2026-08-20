@@ -1,5 +1,5 @@
 /* ============================================================
-   09-oneonone.js  月次1on1（指示書 第9章／シート5）
+   09-oneonone.js  月次1on1
    ============================================================ */
 
 var oooSel = { month: monthStr() };
@@ -82,7 +82,7 @@ VIEWS.oneonone = {
     if(recs.length){
       var h2 = '';
       recs.forEach(function(o){
-        h2 += '<div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:#fff;">'+
+        h2 += '<div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:var(--surface);">'+
           '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'+
             '<b>'+esc(empName(o.employeeId))+'</b>'+
             '<span class="small muted">'+esc(o.date||'')+' ／ 上司：'+esc(empName(o.managerId))+'</span>'+

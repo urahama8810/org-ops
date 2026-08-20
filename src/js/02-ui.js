@@ -27,7 +27,7 @@ function openModal(opts){
     '<div class="modal '+(opts.wide?'wide':'')+'">'+
       '<div class="modal-head"><h3>'+esc(opts.title||'')+'</h3>'+
         (opts.headNote?'<span class="sub muted small">'+esc(opts.headNote)+'</span>':'')+
-        '<span class="x" data-modal-close>×</span></div>'+
+        '<button type="button" class="x" data-modal-close aria-label="閉じる">'+ic('x',17)+'</button></div>'+
       '<div class="modal-body">'+(opts.body||'')+'</div>'+
       (opts.foot!==false?'<div class="modal-foot">'+(opts.foot||'')+'</div>':'')+
     '</div>';
@@ -35,10 +35,18 @@ function openModal(opts){
   document.body.style.overflow = 'hidden';
   _modalStack.push(back);
   back.addEventListener('click', function(e){
-    if(e.target === back || e.target.hasAttribute('data-modal-close')) closeModal();
+    if(e.target === back || e.target.hasAttribute('data-modal-close')) requestCloseModal();
   });
   if(opts.onMount) opts.onMount(back);
   return back;
+}
+
+/* 閉じてよいかを確かめてから閉じる。
+   入力途中のフォームでは、確認をはさむ（back.beforeClose が false を返す） */
+function requestCloseModal(){
+  var m = _modalStack[_modalStack.length-1];
+  if(m && typeof m.beforeClose === 'function' && m.beforeClose() === false) return;
+  closeModal();
 }
 function closeModal(){
   var m = _modalStack.pop();
@@ -47,7 +55,7 @@ function closeModal(){
 }
 function closeAllModals(){ while(_modalStack.length) closeModal(); }
 document.addEventListener('keydown', function(e){
-  if(e.key === 'Escape' && _modalStack.length) closeModal();
+  if(e.key === 'Escape' && _modalStack.length) requestCloseModal();
 });
 
 /* ---------- 確認ダイアログ ---------- */
@@ -72,7 +80,7 @@ function confirmDialog(title, message, onOk, okLabel){
    ============================================================ */
 function fieldHtml(f, val){
   if(f.type === 'heading')
-    return '<div class="full" style="grid-column:1/-1;margin:8px 0 6px;font-weight:700;color:#0f4c81;font-size:13px;border-bottom:1px solid #e3e8ef;padding-bottom:4px;">'+esc(f.label)+'</div>';
+    return '<div class="full form-heading">'+esc(f.label)+'</div>';
   if(f.type === 'html')
     return '<div class="'+(f.full!==false?'full':'')+'">'+(f.html||'')+'</div>';
 
@@ -97,7 +105,7 @@ function fieldHtml(f, val){
     return '<div class="field '+(f.full?'full':'')+'">'+inner+
            (f.hint?'<div class="hint">'+esc(f.hint)+'</div>':'')+'</div>';
   }else if(f.type === 'static'){
-    inner = '<div style="padding:6px 0;font-size:13.5px;">'+(f.raw?v:esc(v))+'</div>';
+    inner = '<div class="static-val">'+(f.raw?v:esc(v))+'</div>';
   }else{
     var itype = f.type === 'datetime' ? 'datetime-local' : (f.type||'text');
     inner = '<input type="'+itype+'" name="'+name+'" value="'+esc(v)+'" '+
@@ -153,13 +161,35 @@ function openForm(opts){
           var el = form.querySelector('[name="f_'+f.key+'"]');
           if(el && String(el.value).trim() === '') miss.push(f.label);
         });
-        if(miss.length){ toast('必須項目が未入力です：'+miss.join('、'), 'bad'); return; }
+        if(miss.length){
+          toast('必須項目が未入力です：'+miss.join('、'), 'bad');
+          for(var mi=0; mi<fields.length; mi++){
+            if(!fields[mi].required) continue;
+            var me = form.querySelector('[name="f_'+fields[mi].key+'"]');
+            if(me && String(me.value).trim() === ''){ me.focus(); break; }
+          }
+          return;
+        }
         var vals = readForm(form, fields);
         var r = opts.onSubmit(vals);
-        if(r !== false) closeModal();
+        if(r !== false){ root.beforeClose = null; closeModal(); }
       }
       root.querySelector('#mSave').addEventListener('click', submit);
       form.addEventListener('submit', function(e){ e.preventDefault(); submit(); });
+      form.addEventListener('keydown', function(e){
+        if((e.ctrlKey||e.metaKey) && e.key === 'Enter'){ e.preventDefault(); submit(); }
+      });
+      /* 開いた直後の内容を控えておき、変わっていたら閉じる前に確かめる */
+      var startState = JSON.stringify(readForm(form, fields));
+      root.beforeClose = function(){
+        var nowState;
+        try{ nowState = JSON.stringify(readForm(form, fields)); }catch(err){ return true; }
+        if(nowState === startState) return true;
+        confirmDialog('入力を取り消しますか',
+          '保存していない入力があります。閉じると入力した内容は消えます。',
+          function(){ root.beforeClose = null; closeModal(); }, '取り消す');
+        return false;
+      };
       var first = form.querySelector('input,select,textarea');
       if(first) first.focus();
     }
@@ -174,8 +204,10 @@ function tableHtml(cols, rows, opts){
   opts = opts || {};
   if(!rows.length){
     return '<div class="empty">'+
+      (typeof ic==='function' ? ic(opts.emptyIcon||'clipboard',28) : '')+
       '<div class="big">'+esc(opts.emptyTitle||'まだ登録がありません')+'</div>'+
-      '<div>'+esc(opts.emptyText||'')+'</div></div>';
+      '<div>'+esc(opts.emptyText||'')+'</div>'+
+      (opts.emptyAction?'<div class="btn-row">'+opts.emptyAction+'</div>':'')+'</div>';
   }
   var h = '<div class="table-wrap"><table class="tbl"><thead><tr>';
   cols.forEach(function(c){
@@ -193,11 +225,15 @@ function tableHtml(cols, rows, opts){
   return h + '</tbody></table></div>';
 }
 
-function badge(text, kind){ return '<span class="badge '+(kind||'neutral')+'">'+esc(text)+'</span>'; }
-function btn(label, act, data, cls){
+function badge(text, kind, icon){
+  return '<span class="badge '+(kind||'neutral')+'">'+
+    (icon&&typeof ic==='function'?ic(icon,12):'')+esc(text)+'</span>';
+}
+function btn(label, act, data, cls, icon){
   var attrs = '';
   for(var k in (data||{})) attrs += ' data-'+k+'="'+esc(data[k])+'"';
-  return '<button class="btn sm '+(cls||'')+'" data-act="'+act+'"'+attrs+'>'+esc(label)+'</button>';
+  return '<button class="btn sm '+(cls||'')+'" data-act="'+act+'"'+attrs+'>'+
+    (icon&&typeof ic==='function'?ic(icon,14):'')+esc(label)+'</button>';
 }
 function progressBar(p, kind){
   p = clamp(Math.round(p),0,100);
@@ -206,13 +242,16 @@ function progressBar(p, kind){
 function card(title, bodyHtml, opts){
   opts = opts || {};
   return '<div class="card'+(opts.cls?' '+opts.cls:'')+'">'+
-    (title!==null ? '<div class="card-head"><h2>'+esc(title)+'</h2>'+
+    (title!==null ? '<div class="card-head">'+
+      (opts.icon&&typeof ic==='function'?'<span class="hd-ic">'+ic(opts.icon,17)+'</span>':'')+
+      '<h2>'+esc(title)+'</h2>'+
       (opts.sub?'<span class="sub">'+esc(opts.sub)+'</span>':'')+
       '<span class="spacer"></span>'+(opts.tools||'')+'</div>' : '')+
     '<div class="card-body'+(opts.tight?' tight':'')+'">'+bodyHtml+'</div></div>';
 }
-function tile(label, value, note, kind){
-  return '<div class="tile '+(kind||'')+'"><div class="label">'+esc(label)+'</div>'+
+function tile(label, value, note, kind, icon){
+  return '<div class="tile '+(kind||'')+'"><div class="label">'+
+    (icon&&typeof ic==='function'?ic(icon,13):'')+esc(label)+'</div>'+
     '<div class="value">'+value+'</div>'+
     (note?'<div class="note">'+note+'</div>':'')+'</div>';
 }

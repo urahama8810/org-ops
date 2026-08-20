@@ -1,5 +1,5 @@
 /* ============================================================
-   14-plan.js  90日プロジェクト計画（指示書 第1〜3・15・16章）
+   14-plan.js  90日プロジェクト計画（社内ルール 第1〜3・15・16章）
    ============================================================ */
 
 var SHEET_LINKS = [
@@ -37,8 +37,8 @@ function goalStateCheck(){
 }
 
 VIEWS.plan = {
-  title:'90日プロジェクト計画',
-  desc:'指示書の全体像です。目的は、社長個人の記憶・感覚・監視に依存せず、役割・数字・権限・報告ルールで組織を運営できる状態をつくること。',
+  title:'90日の導入計画',
+  desc:'この仕組みを立ち上げるまでの段取りです。導入が終われば、この画面を開く機会はほとんどなくなります。',
   render:function(){
     var d = DB.data;
     var pp = planProgress();
@@ -46,14 +46,14 @@ VIEWS.plan = {
     var h = '';
 
     /* 目的 */
-    h += '<div class="notice"><b>目的：</b>社長個人の記憶・感覚・監視に依存せず、'+
-      '<b>役割・数字・権限・報告ルール</b>で組織を運営できる状態をつくる。</div>';
+    h += '<div class="notice"><b>目指す状態：</b>特定の人の記憶や感覚に頼らなくても、'+
+      '<b>役割・数字・権限・報告のルール</b>で会社が回るようにすること。</div>';
 
     /* 90日後の完成状態 */
     var chk = goalStateCheck();
     h += card('90日後の完成状態', GOAL_STATE.map(function(g,i){
       return '<div class="alert '+(chk[i]?'ok':'')+'" style="margin-bottom:6px;">'+
-        '<span class="ic">'+(chk[i]?'✓':'□')+'</span><div><div class="t" style="font-weight:'+(chk[i]?'600':'400')+';">'+esc(g)+'</div></div></div>';
+        '<span class="ic">'+ic(chk[i]?'check':'info',15)+'</span><div class="body"><div class="t" style="font-weight:'+(chk[i]?'600':'400')+';">'+esc(g)+'</div></div></div>';
     }).join(''), {sub:chk.filter(Boolean).length+' / '+GOAL_STATE.length+' 達成'});
 
     /* 進捗タイル */
@@ -71,9 +71,9 @@ VIEWS.plan = {
     PLAN_WEEKS.forEach(function(w){
       var st = pp.perWeek[w.id];
       var isNow = pd.week >= w.range[0] && pd.week <= w.range[1];
-      sched += '<div style="border:1px solid '+(isNow?'var(--accent)':'var(--border)')+';border-radius:8px;margin-bottom:10px;background:#fff;'+
-        (isNow?'box-shadow:0 0 0 1px var(--accent);':'')+'">'+
-        '<div style="display:flex;gap:10px;align-items:center;padding:9px 13px;background:'+(isNow?'var(--accent-weak)':'var(--panel-2)')+';border-bottom:1px solid var(--border);flex-wrap:wrap;">'+
+      sched += '<div style="border:1px solid '+(isNow?'var(--brand)':'var(--border)')+';border-radius:8px;margin-bottom:10px;background:var(--surface);'+
+        (isNow?'box-shadow:0 0 0 1px var(--brand);':'')+'">'+
+        '<div style="display:flex;gap:10px;align-items:center;padding:9px 13px;background:'+(isNow?'var(--brand-soft)':'var(--surface-2)')+';border-bottom:1px solid var(--border);flex-wrap:wrap;">'+
           '<b style="min-width:90px;">'+esc(w.period)+'</b>'+
           '<span>'+esc(w.task)+'</span>'+
           (isNow?badge('今ここ','accent'):'')+
@@ -90,7 +90,7 @@ VIEWS.plan = {
         }).join('')+
         '</div></div>';
     });
-    h += card('90日実行スケジュール', sched, {sub:'指示書 第3章'});
+    h += card('90日実行スケジュール', sched, {});
 
     /* プロジェクト体制 */
     h += card('プロジェクト体制', tableHtml([
@@ -100,14 +100,14 @@ VIEWS.plan = {
       {label:'担当者', width:'220px', render:function(r){
         var val = (DB.data.projectRoles||{})[r.key] || '';
         return '<input type="text" value="'+esc(val)+'" data-change="projRole" data-k="'+r.key+'" placeholder="氏名を入力">'; }}
-    ], PROJECT_ROLES, {}), {tight:true, sub:'指示書 第2章'});
+    ], PROJECT_ROLES, {}), {tight:true});
 
     /* 着手順 */
     h += card('明日から着手する順番', FIRST_STEPS.map(function(s,i){
       return '<label class="chk"><input type="checkbox" data-change="firstStep" data-i="'+i+'"'+
         ((d.firstSteps||{})[i]?' checked':'')+'>'+
         '<span'+((d.firstSteps||{})[i]?' class="muted" style="text-decoration:line-through;"':'')+'><b>'+(i+1)+'.</b> '+esc(s)+'</span></label>';
-    }).join(''), {sub:'指示書 第15章'});
+    }).join(''), {});
 
     /* 6つのシート */
     h += card('最初に作成する6つのシート', tableHtml([
@@ -117,10 +117,10 @@ VIEWS.plan = {
         var p = readinessScore().parts.filter(function(x){ return x.view === s.view; })[0];
         return p ? progressBar(p.rate, p.rate>=80?'ok':p.rate>=40?'warn':'bad')+'<span class="small mono">'+p.rate+'%</span>' : ''; }},
       {label:'', cls:'actions', width:'90px', render:function(s){ return btn('開く','go',{view:s.view},'primary'); }}
-    ], SHEET_LINKS, {}), {tight:true, sub:'指示書 第16章'});
+    ], SHEET_LINKS, {}), {tight:true});
 
     /* 注意 */
-    h += '<div class="alert warn"><span class="ic">▲</span><div>'+
+    h += '<div class="alert warn"><span class="ic">'+ic('info',15)+'</span><div class="body">'+
       '<div class="t">報酬連動の前に確認すること</div>'+
       '<div class="d">評価制度を減給・賞与・降格等へ連動させる前に、就業規則・賃金規程との整合や必要な手続を社労士等へ確認してください。'+
       '制度導入初期は「評価を正確に運用できること」を優先し、報酬変更を急がないこと。</div></div></div>';

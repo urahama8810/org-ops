@@ -1,5 +1,5 @@
 /* ============================================================
-   13-improvement.js  成績が低い場合の対応（指示書 第13章）
+   13-improvement.js  成績が低い場合の対応
    ============================================================ */
 
 VIEWS.improvement = {
@@ -10,10 +10,10 @@ VIEWS.improvement = {
     var h = '';
 
     h += '<div class="help-block">'+
-      '<b>改善計画に必ず書くこと（指示書 第13章）：</b> ①改善が必要な事実 ②期待水準 ③測定方法 ④会社の支援 ⑤毎週の確認 ⑥期限。<br>'+
+      '<b>改善計画に必ず書くこと：</b> ①改善が必要な事実 ②期待水準 ③測定方法 ④会社の支援 ⑤毎週の確認 ⑥期限。<br>'+
       '「やる気を出す」「意識を変える」は改善計画になりません。<b>行動と数字</b>で書いてください。</div>';
 
-    h += '<div class="alert warn"><span class="ic">▲</span><div>'+
+    h += '<div class="alert warn"><span class="ic">'+ic('info',15)+'</span><div class="body">'+
       '<div class="t">通常の評価と分けて扱うもの</div>'+
       '<div class="d">虚偽報告・無断契約・資金流出・データ持出し等は、評価制度ではなく<b>就業規則・規程・法的手続</b>に基づいて扱います。'+
       '改善計画の対象にしないでください。</div></div></div>';
@@ -128,7 +128,7 @@ function openImpForm(rec, empId){
     onSubmit:function(v){
       var days = daysBetween(v.startDate, v.endDate);
       if(days < 25 || days > 70){
-        if(!confirm('期間が'+days+'日です。指示書では30〜60日を想定しています。このまま保存しますか？')) return false;
+        if(!confirm('期間が'+days+'日です。社内ルールでは30〜60日を想定しています。このまま保存しますか？')) return false;
       }
       if(lines(v.items).length > 3){
         toast('改善項目は3つ以内にしてください（現在'+lines(v.items).length+'個）','bad'); return false;
@@ -169,7 +169,10 @@ action('impCheckNew', function(ds){
 });
 action('impCheckDel', function(ds){
   var p = byId(DB.data.improvementPlans, ds.id);
-  p.weeklyChecks.splice(num(ds.i),1); DB.save(); render();
+  confirmDialog('この週の記録を削除する',
+    'この週の確認記録を削除します。よろしいですか？',
+    function(){ p.weeklyChecks.splice(num(ds.i),1); DB.save(); render(); toast('削除しました','ok'); },
+    '削除する');
 });
 action('impClose', function(ds){
   var p = byId(DB.data.improvementPlans, ds.id);

@@ -1,5 +1,5 @@
 /* ============================================================
-   08-kpi.js  週次KPI会議（指示書 第7章／シート4）
+   08-kpi.js  週次KPI会議
    ============================================================ */
 
 var kpiSel = { weekId:null };
@@ -19,7 +19,7 @@ VIEWS.kpi = {
 
     h += '<div class="help-block">'+
       '<b>会議の型（45分）：</b> '+MEETING_AGENDA.map(function(a){ return a.min+'分 '+a.label; }).join(' → ')+'。'+
-      ' 未達項目には必ず<b>「対策・担当者・期限」</b>をその場で決めます。決まらない議題は次回に持ち越さず、社長判断事項として記録します。</div>';
+      ' 未達項目には必ず<b>「対策・担当者・期限」</b>をその場で決めます。決まらない議題は次回に持ち越さず、経営判断事項として記録します。</div>';
 
     var weeks = sortBy(d.kpiWeeks, function(w){ return w.weekOf; }).reverse();
     var w = currentKpiWeek();
@@ -67,7 +67,7 @@ VIEWS.kpi = {
       { label:'差', cls:'num', width:'70px', render:function(r){
           var g = kpiGap(r); if(g==='') return '<span class="muted">—</span>';
           var st = kpiRowStatus(r);
-          return '<span class="mono" style="color:'+(st==='ok'?'#1c7c4a':st==='ng'?'#b3261e':'#9a6b00')+'">'+g+'</span>'; } },
+          return '<span class="mono" style="color:'+(st==='ok'?'var(--ok)':st==='ng'?'var(--bad)':'var(--warn)')+'">'+g+'</span>'; } },
       { label:'状態', width:'70px', render:function(r){
           var st = kpiRowStatus(r);
           var k = KPI_STATUS.filter(function(x){return x.key===st;})[0];
@@ -86,7 +86,7 @@ VIEWS.kpi = {
           if(!r.due) return '<span class="muted small">—</span>';
           var over = !r.doneAt && r.due < todayStr();
           return '<span class="'+(over?'badge bad':'small')+'">'+esc(r.due)+'</span>'+
-                 (r.doneAt?'<div class="small" style="color:#1c7c4a;">完了</div>':''); } },
+                 (r.doneAt?'<div class="small" style="color:var(--ok);">完了</div>':''); } },
       { label:'', cls:'actions', width:'130px', render:function(r){
           return btn('入力','kpiRowEdit',{w:w.id,r:r.id})+' '+
                  (r.doneAt?btn('完了解除','kpiRowUndone',{w:w.id,r:r.id}):btn('対策完了','kpiRowDone',{w:w.id,r:r.id}))+' '+
@@ -105,7 +105,7 @@ VIEWS.kpi = {
 
     /* 議事記録 */
     var mh = '<div class="grid c2">'+
-      '<div><div class="small muted">社長判断事項（第7章 最後の5分）</div>'+
+      '<div><div class="small muted">経営判断事項（第7章 最後の5分）</div>'+
         '<div style="min-height:60px;padding:8px 0;">'+(nl2br(w.ceoDecisions)||'<span class="muted">未記入</span>')+'</div></div>'+
       '<div><div class="small muted">次回の確認事項</div>'+
         '<div style="min-height:60px;padding:8px 0;">'+(nl2br(w.nextCheck)||'<span class="muted">未記入</span>')+'</div></div>'+
@@ -266,7 +266,7 @@ action('kpiRowEdit', function(ds){
   var st = kpiRowStatus(r);
   openForm({ title:'指標の入力：'+r.indicator, wide:true, fields:kpiRowFields(), value:r,
     intro: (st==='ng'||st==='watch') ?
-      '<b>目標との差があります。</b> 原因・対策・責任者・期限をこの場で決めてください（指示書 第7章）。' :
+      '<b>目標との差があります。</b> 原因・対策・責任者・期限をこの場で決めてください。' :
       '実績を入力すると、状態が自動判定されます。',
     onSubmit:function(v){
       v.id = r.id; v.doneAt = r.doneAt; v.goalId = r.goalId;
@@ -275,8 +275,13 @@ action('kpiRowEdit', function(ds){
 });
 action('kpiRowDel', function(ds){
   var w = byId(DB.data.kpiWeeks, ds.w);
-  w.rows = w.rows.filter(function(x){ return x.id !== ds.r; });
-  DB.save(); render();
+  var r = byId(w.rows, ds.r);
+  confirmDialog('この指標を表から外す',
+    '「'+(r?r.indicator:'')+'」をこの週の表から外します。\n入力済みの原因・対策・担当者・期限も一緒に消えます。',
+    function(){
+      w.rows = w.rows.filter(function(x){ return x.id !== ds.r; });
+      DB.save(); render(); toast('表から外しました','ok');
+    }, '外す');
 });
 action('kpiRowDone', function(ds){
   var w = byId(DB.data.kpiWeeks, ds.w);
@@ -292,7 +297,22 @@ action('kpiActual', function(ds, el){
   var w = byId(DB.data.kpiWeeks, ds.w);
   var r = byId(w.rows, ds.r);
   r.actual = el.value === '' ? '' : num(el.value);
-  DB.save(); render();
+  DB.save();
+  /* 画面全体を描き直すと入力中の欄から離れてしまうので、その行だけ書き換える */
+  var tr = el.closest ? el.closest('tr') : null;
+  if(tr){
+    var st = kpiRowStatus(r);
+    var kk = KPI_STATUS.filter(function(x){ return x.key===st; })[0];
+    var tds = tr.querySelectorAll('td');
+    if(tds.length >= 5){
+      var g = kpiGap(r);
+      tds[3].innerHTML = g==='' ? '<span class="muted">—</span>'
+        : '<span class="mono" style="color:'+(st==='ok'?'var(--ok)':st==='ng'?'var(--bad)':'var(--warn)')+'">'+g+'</span>';
+      tds[4].innerHTML = '<span class="badge '+kk.cls+'">'+kk.label+'</span>';
+    }
+  }else{
+    render();
+  }
 });
 action('kpiSelWeek', function(ds, el){ kpiSel.weekId = el.value; render(); });
 
@@ -301,8 +321,8 @@ action('kpiMinutes', function(ds){
   openForm({ title:'議事記録：'+w.weekOf+' の週', wide:true,
     fields:[
       { key:'attendees', label:'出席者', full:true },
-      { key:'ceoDecisions', label:'社長判断事項', type:'textarea', rows:4, full:true,
-        hint:'社長が決めること／決めたことを書く。口頭で終わらせない（指示書 第8章）。' },
+      { key:'ceoDecisions', label:'経営判断事項', type:'textarea', rows:4, full:true,
+        hint:'その場で決まらず、経営層の判断を待つ件を書きます。口頭で終わらせず、ここに残します。' },
       { key:'nextCheck', label:'次回の確認事項', type:'textarea', rows:3, full:true },
       { key:'minutes', label:'その他メモ', type:'textarea', rows:3, full:true }
     ],
@@ -330,7 +350,7 @@ action('kpiMeetingMode', function(ds){
   }
   function focusRows(){
     var rows = w.rows.filter(function(r){ var s=kpiRowStatus(r); return s==='ng'||s==='watch'; });
-    if(!rows.length) return '<div class="alert ok"><span class="ic">✓</span><div><div class="t">目標との差がある項目はありません</div>'+
+    if(!rows.length) return '<div class="alert ok"><span class="ic">'+ic('check',15)+'</span><div class="body"><div class="t">目標との差がある項目はありません</div>'+
       '<div class="d">会議は短く終えて構いません。活動報告会にしないこと。</div></div></div>';
     return tableHtml([
       {label:'指標', render:function(r){ return '<b>'+esc(r.indicator)+'</b>'; }},
@@ -368,13 +388,13 @@ action('kpiMeetingMode', function(ds){
       focusRows()+
       '<div class="sep"></div>'+
       '<div class="form-grid">'+
-        '<div class="field full"><label>社長判断事項</label><textarea id="mtCeo" rows="3">'+esc(w.ceoDecisions||'')+'</textarea></div>'+
+        '<div class="field full"><label>経営判断事項</label><textarea id="mtCeo" rows="3">'+esc(w.ceoDecisions||'')+'</textarea></div>'+
         '<div class="field full"><label>次回の確認事項</label><textarea id="mtNextCheck" rows="2">'+esc(w.nextCheck||'')+'</textarea></div>'+
       '</div>';
   }
   openModal({
     title:'会議モード：'+w.weekOf+' の週', wide:true, body:bodyHtml(),
-    foot:'<span class="left small muted">45分を過ぎたら、残りは持ち帰らず社長判断事項として記録します。</span>'+
+    foot:'<span class="left small muted">45分を過ぎたら、残りは持ち帰らず経営判断事項として記録します。</span>'+
          '<button class="btn" id="mtClose">閉じる</button>'+
          '<button class="btn primary" id="mtSave">記録して終了</button>',
     onMount:function(root){ bind(root); }
@@ -470,7 +490,7 @@ action('kpiPrint', function(ds){
       '<div class="small">出席者：'+esc(w.attendees||'—')+'</div><div class="sep"></div>'+
       tableHtml(cols, w.rows, {})+
       '<div class="sep"></div><dl class="kv">'+
-      '<dt>社長判断事項</dt><dd>'+(nl2br(w.ceoDecisions)||'—')+'</dd>'+
+      '<dt>経営判断事項</dt><dd>'+(nl2br(w.ceoDecisions)||'—')+'</dd>'+
       '<dt>次回の確認事項</dt><dd>'+(nl2br(w.nextCheck)||'—')+'</dd>'+
       '<dt>その他メモ</dt><dd>'+(nl2br(w.minutes)||'—')+'</dd></dl>'+
     '</div></div>');

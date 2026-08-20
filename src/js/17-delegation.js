@@ -1,9 +1,9 @@
 /* ============================================================
-   17-delegation.js  委任カード（任せ方の6項目）
+   17-delegation.js  仕事の任せ方
    ------------------------------------------------------------
-   構造分析レポート 第11章 第2層／第6章
-     「任せっぱなし」と「細部への介入」の中間にある、継続的なマネジメント。
-     任せるときに6項目を決め、中間確認日を必ず入れる。
+   任せきりにするのでも、細かく口を出すのでもなく、
+   渡すときに6項目を決めて、決めた日に一度だけ確認する。
+   その記録をここに残す。
    ============================================================ */
 
 function delegationFill(dl){
@@ -60,24 +60,25 @@ function delegationStats(){
 
 /* ---------- 画面 ---------- */
 VIEWS.delegation = {
-  title:'委任カード（任せ方）',
-  desc:'任せるときに決める6項目と、中間確認の記録です。',
+  title:'仕事の任せ方',
+  desc:'仕事を渡すときに決める6項目と、途中で確認した記録です。',
   render:function(){
     var d = DB.data, st = delegationStats(), h = '';
 
     h += '<div class="notice">'+
-      '<b>「できないことをやらせる」こと自体は、育成になり得ます。</b>'+
-      'しかし事前説明・成功条件・権限・練習・中間確認・具体的なフィードバックがない状態では、'+
-      'それは育成ではなく<b>能力テスト</b>になります。任せるときは、次の6項目をこのカードに書いてから渡してください。'+
+      '<b>まだできないことを任せるのは、それ自体はよい機会です。</b>'+
+      'ただし、事前の説明、完了の条件、決めてよい範囲、練習の機会、途中の確認、具体的な助言。'+
+      'これらがないまま渡すと、育つ機会ではなく「できるかどうかの試験」になってしまいます。'+
+      '仕事を渡すときは、次の6項目を決めてからにしましょう。'+
       '</div>';
 
     h += '<div class="grid c4" style="margin-bottom:16px;">'+
-      tile('進行中の委任', st.open+'<small>件</small>', '全'+st.total+'件', 'accent')+
+      tile('進行中の仕事', st.open+'<small>件</small>', '全'+st.total+'件', 'accent', 'handoff')+
       tile('6項目の記入率', st.fullRate===null?'—':st.fullRate+'<small>%</small>',
-           '空欄のまま渡すと「任せっぱなし」になります', st.fullRate===null?'':(st.fullRate>=80?'ok':'bad'))+
-      tile('中間確認の実施率', st.checkRate===null?'—':st.checkRate+'<small>%</small>',
-           '育成が動いているかの先行指標', st.checkRate===null?'':(st.checkRate>=80?'ok':st.checkRate>=50?'warn':'bad'))+
-      tile('対応が必要', st.late+'<small>件</small>', '中間確認の遅れ・期限超過・確認日未設定', st.late?'bad':'ok')+
+           '空欄のまま渡すと、任せきりになりやすくなります', st.fullRate===null?'':(st.fullRate>=80?'ok':'bad'))+
+      tile('途中確認の実施率', st.checkRate===null?'—':st.checkRate+'<small>%</small>',
+           '育成が回っているかが、ここに出ます', st.checkRate===null?'':(st.checkRate>=80?'ok':st.checkRate>=50?'warn':'bad'))+
+      tile('対応が必要', st.late+'<small>件</small>', '確認の遅れ・期限超過・確認日が未設定', st.late?'bad':'ok', 'alert')+
       '</div>';
 
     var rows = sortBy(d.delegations, function(x){
@@ -95,11 +96,11 @@ VIEWS.delegation = {
           return progressBar(f.rate, f.rate===100?'ok':f.rate>=60?'warn':'bad')+
                  '<span class="small mono">'+f.done+'/6</span>'+
                  (f.missing.length?'<div class="small muted">未：'+esc(f.missing.slice(0,2).join('、'))+'</div>':''); } },
-      { label:'次の中間確認', width:'130px', render:function(r){
+      { label:'次の確認日', width:'130px', render:function(r){
           var nc = nextCheckDate(r);
           if(!nc) return badge('未設定','bad');
           var left = daysBetween(todayStr(), nc);
-          return esc(nc)+'<div class="small '+(left<0?'':'muted')+'" '+(left<0?'style="color:#c8352b;font-weight:600;"':'')+'>'+
+          return esc(nc)+'<div class="small '+(left<0?'':'muted')+'" '+(left<0?'style="color:var(--bad-solid);font-weight:600;"':'')+'>'+
                  (left<0?(-left)+'日超過':left===0?'今日':'あと'+left+'日')+'</div>'; } },
       { label:'確認回数', cls:'num', width:'80px', render:function(r){
           var cs = r.checks||[];
@@ -109,18 +110,20 @@ VIEWS.delegation = {
       { label:'', cls:'actions', width:'210px', render:function(r){
           var b = btn('開く','dlgEdit',{id:r.id});
           if(!r.state || r.state==='open'){
-            b += ' '+btn('中間確認','dlgCheck',{id:r.id},'primary');
+            b += ' '+btn('確認を記録','dlgCheck',{id:r.id},'primary','check');
             b += ' '+btn('終了','dlgClose',{id:r.id});
           }
           return b+' '+btn('削除','dlgDel',{id:r.id},'danger'); } }
     ], rows, {
-      emptyTitle:'委任カードがありません',
-      emptyText:'次に誰かへ仕事を任せるとき、その場でこのカードを1枚作ってください。'
+      emptyTitle:'まだ登録がありません',
+      emptyText:'次に誰かへ仕事を渡すとき、その場で1件つくってみてください。',
+      emptyIcon:'handoff'
     });
 
-    h += card('委任カード一覧', body, {
-      sub:'任せた後に問題が起きたときは、本人だけでなく「任せ方の設計」も検証します',
-      tools: btn('仕事を任せる（カードを作る）','dlgNew',{},'primary')+' '+btn('CSV','dlgCsv',{})
+    h += card('任せている仕事', body, {
+      icon:'handoff',
+      sub:'うまくいかなかったときは、本人だけでなく、渡し方のほうも一緒に見直します',
+      tools: btn('仕事を渡す','dlgNew',{},'primary','plus')+' '+btn('CSV','dlgCsv',{},'','download')
     });
 
     /* 6項目の説明 */
@@ -131,21 +134,21 @@ VIEWS.delegation = {
                '<div class="small muted">'+esc(f.hint||'')+'</div></div>';
       }).join('')+'</div>'+
       '<div class="help-block" style="margin-top:6px;">'+esc(MGMT_DEFINITION)+'</div>',
-      {sub:'構造分析レポート 第11章 第2層'});
+      {icon:'clipboard'});
 
-    /* マネジメントと支配の違い */
-    h += card('避けている「管理」と、求めている「管理」は別物です',
+    h += '<details class="help"><summary>'+ic('users',14)+
+      '同じ「管理」でも、続く関わり方と続かない関わり方があります</summary><div class="in">'+
       '<table class="tbl"><thead><tr>'+
-      '<th style="width:50%;">避けている管理：マネジメント</th><th>求めている管理：支配・統制</th>'+
+      '<th style="width:50%;">続けたい関わり方</th><th>やりすぎになりやすい関わり方</th>'+
       '</tr></thead><tbody>'+
       MGMT_VS_CONTROL.map(function(r){
         return '<tr><td><b>'+esc(r.mgmt)+'</b></td><td class="muted">'+esc(r.ctrl)+'</td></tr>'; }).join('')+
       '</tbody></table>'+
-      '<div class="help-block" style="margin-top:12px;">'+
-      '<b>いまの振り子：</b>平時は放置 → 中間確認がないので問題が見えない → 納期や結果の段階で大きな問題として発覚 → '+
-      '激昂・過剰指示 → 現場が萎縮して質問と報告が減る → 疲弊して再び放置へ戻る。'+
-      '<br>必要なのは、放任でも支配でもなく、<b>その中間にある継続的なマネジメント</b>です。</div>',
-      {sub:'構造分析レポート 第6章'});
+      '<p style="margin:10px 0 0;">中間の確認がないと、状況が見えないまま期限を迎え、'+
+      'その段階で急いで細かく指示することになりがちです。すると質問や報告が出にくくなり、'+
+      'また状況が見えなくなります。決めた日に一度だけ確認する。それだけで、この流れは止まります。</p>'+
+      '</div></details>';
+
 
     return h;
   }
@@ -154,8 +157,8 @@ VIEWS.delegation = {
 /* ---------- 操作 ---------- */
 var DELEGATION_FORM = function(){
   var f = [
-    { key:'title', label:'任せる仕事', required:true, full:true, placeholder:'例：新規顧客向け提案書の作成と提出' },
-    { key:'employeeId', label:'任せる相手', type:'select', options:empOptions(true), required:true },
+    { key:'title', label:'渡す仕事', required:true, full:true, placeholder:'例：新規のお客様向け提案書をつくって提出する' },
+    { key:'employeeId', label:'担当する人', type:'select', options:empOptions(true), required:true },
     { key:'startDate', label:'渡した日', type:'date' }
   ];
   DELEGATION_FIELDS.forEach(function(x){
@@ -170,15 +173,15 @@ action('dlgNew', function(ds){
   var v = { startDate:todayStr() };
   if(ds && ds.emp) v.employeeId = ds.emp;
   openForm({
-    title:'委任カードを作る', wide:true,
-    intro:'<b>この6項目を空欄のまま渡すと、失敗の確率が上がります。</b>'+
-          '特に⑤中間確認日が「任せっぱなし」と「継続的なマネジメント」の分かれ目です。',
+    title:'仕事を渡す', wide:true,
+    intro:'<b>この6項目が空欄のまま渡すと、途中でつまずきやすくなります。</b>'+
+          'とくに⑤の中間確認日は、任せきりになるかどうかの分かれ目です。',
     fields:DELEGATION_FORM(), value:v,
     onSubmit:function(v2){
       v2.id = uid('dlg'); v2.createdAt = nowIso(); v2.state = 'open'; v2.checks = [];
       if(v2.checkAt) v2.checks.push({ id:uid('chk'), date:v2.checkAt, doneAt:'', note:'' });
       DB.data.delegations.push(v2); DB.save(); render();
-      toast('委任カードを作りました','ok');
+      toast('登録しました','ok');
     }
   });
 });
@@ -194,16 +197,16 @@ action('dlgEdit', function(ds){
     : '<div class="small muted">中間確認の記録はまだありません。</div>';
 
   openForm({
-    title:'委任カード', wide:true,
-    intro:'<div class="help-block"><b>中間確認の記録</b>'+hist+'</div>',
+    title:'任せている仕事', wide:true,
+    intro:'<div class="help-block"><b>これまでの確認の記録</b>'+hist+'</div>',
     fields:DELEGATION_FORM().concat([
-      { type:'heading', label:'結果と、任せ方の検証' },
-      { key:'feedback', label:'渡した具体的なフィードバック', type:'textarea', rows:2, full:true,
-        hint:'人格や姿勢ではなく、行動と結果に対して書く。' },
-      { key:'retryCount', label:'再挑戦させた回数', type:'number', min:0,
-        hint:'1回の失敗で取り上げると、学習が止まります。' },
-      { key:'designNote', label:'任せ方の設計に問題はなかったか', type:'textarea', rows:2, full:true,
-        hint:'成果の定義・裁量・情報・練習・期限のどれが足りなかったかを書く。' }
+      { type:'heading', label:'結果と、渡し方の振り返り' },
+      { key:'feedback', label:'本人に伝えた具体的な内容', type:'textarea', rows:2, full:true,
+        hint:'人柄や姿勢ではなく、行動と結果について書きます。' },
+      { key:'retryCount', label:'もう一度やってもらった回数', type:'number', min:0,
+        hint:'一度うまくいかなかっただけで手を離すと、身につく前に終わってしまいます。' },
+      { key:'designNote', label:'渡し方のほうに足りないところはなかったか', type:'textarea', rows:2, full:true,
+        hint:'成果の定義・決めてよい範囲・情報・練習・期限のどれが足りなかったかを書きます。' }
     ]),
     value:rec, submitLabel:'保存',
     onSubmit:function(v){
@@ -256,18 +259,18 @@ action('dlgCheck', function(ds){
 action('dlgClose', function(ds){
   var rec = byId(DB.data.delegations, ds.id); if(!rec) return;
   openForm({
-    title:'委任を終了する', wide:true,
-    intro:'<b>結果が出なかった場合でも、まず「任せ方の設計」を検証してください。</b>'+
-          '育成・基準・中間確認・権限設計を作らなかった結果として能力不足が起きたのに、'+
-          'それを本人の資質として罰すると、同じことが繰り返されます。',
+    title:'この仕事を終了する', wide:true,
+    intro:'<b>結果が出なかったときも、まず渡し方のほうを振り返ります。</b>'+
+          '説明・基準・途中の確認・決めてよい範囲。'+
+          'これらが足りずに起きたことを本人の力不足として扱うと、同じことがくり返されます。',
     fields:[
       { key:'state', label:'結果', type:'select', required:true,
         options:DELEGATION_STATES.filter(function(s){return s.key!=='open';})
                                  .map(function(s){return {value:s.key,label:s.label};}) },
       { key:'result', label:'何ができて、何ができなかったか', type:'textarea', rows:3, full:true, required:true },
-      { key:'designNote', label:'任せ方の設計で足りなかったもの', type:'textarea', rows:2, full:true,
-        hint:'成果の定義／裁量／情報／練習／中間確認／期限 のどれか。' },
-      { key:'learn', label:'次に同じ仕事を任せるときに変えること', type:'textarea', rows:2, full:true }
+      { key:'designNote', label:'渡し方で足りなかったもの', type:'textarea', rows:2, full:true,
+        hint:'成果の定義／決めてよい範囲／情報／練習／途中の確認／期限 のどれか。' },
+      { key:'learn', label:'次に同じ仕事を渡すときに変えること', type:'textarea', rows:2, full:true }
     ],
     value:{ state:'done', result:rec.result||'', designNote:rec.designNote||'' },
     submitLabel:'終了する',
@@ -280,14 +283,14 @@ action('dlgClose', function(ds){
 });
 
 action('dlgDel', function(ds){
-  confirmDialog('削除', 'この委任カードを削除します。よろしいですか？', function(){
+  confirmDialog('削除', 'この記録を削除します。よろしいですか？', function(){
     DB.data.delegations = DB.data.delegations.filter(function(x){ return x.id!==ds.id; });
     DB.save(); render(); toast('削除しました','ok');
   }, '削除する');
 });
 
 action('dlgCsv', function(){
-  var rows = [['任せた仕事','相手','渡した日','期限','中間確認日','成果物・数値','本人の裁量','禁止事項','相談条件','確認実施/予定','状態','結果','任せ方の検証']];
+  var rows = [['渡した仕事','担当する人','渡した日','期限','途中の確認日','成果物・数値','本人が決めてよい範囲','やらないこと','相談の条件','確認の実施/予定','状態','結果','渡し方の振り返り']];
   DB.data.delegations.forEach(function(r){
     var cs = r.checks||[];
     rows.push([r.title, r.employeeId?empName(r.employeeId):'', r.startDate, r.due, r.checkAt,
@@ -295,6 +298,6 @@ action('dlgCsv', function(){
       cs.filter(function(c){return c.doneAt;}).length+'/'+cs.length,
       delegationState(r).label, r.result, r.designNote]);
   });
-  downloadCsv('委任カード_'+todayStr()+'.csv', rows);
+  downloadCsv('仕事の任せ方_'+todayStr()+'.csv', rows);
   toast('CSVを書き出しました','ok');
 });

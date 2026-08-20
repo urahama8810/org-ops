@@ -1,5 +1,5 @@
 /* ============================================================
-   11-grades.js  等級制度 G1〜G5（指示書 第11章）
+   11-grades.js  等級制度 G1〜G5
    ============================================================ */
 
 VIEWS.grades = {
@@ -10,7 +10,7 @@ VIEWS.grades = {
     var h = '';
 
     h += '<div class="help-block">'+
-      '<b>昇格の基本条件（指示書 第11章）：</b> '+PROMOTION_CONDITIONS.map(function(c){ return '①②③'[0]; }).join('')+
+      '<b>昇格の基本条件：</b> '+PROMOTION_CONDITIONS.map(function(c){ return '①②③'[0]; }).join('')+
       '<ol style="margin:4px 0 0;padding-left:20px;">'+
       PROMOTION_CONDITIONS.map(function(c){ return '<li><b>'+esc(c.label)+'</b> — '+esc(c.hint)+'</li>'; }).join('')+
       '</ol></div>';
@@ -140,7 +140,7 @@ action('gradeEdit', function(ds){
 });
 
 action('gradeReset', function(){
-  confirmDialog('等級定義を標準に戻す','指示書の標準定義（G1〜G5）に戻します。編集した内容は失われます。よろしいですか？', function(){
+  confirmDialog('等級定義を標準に戻す','標準の定義（G1〜G5）に戻します。編集した内容は失われます。よろしいですか？', function(){
     DB.data.grades = JSON.parse(JSON.stringify(DEFAULT_GRADES));
     DB.save(); render(); toast('標準定義に戻しました','ok');
   }, '戻す');

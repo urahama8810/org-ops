@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>評価制度・組織管理体制 運用アプリ</title>
-<meta name="description" content="評価制度・組織管理体制 90日導入プロジェクト指示書を社内で運用するためのアプリ">
-<meta name="theme-color" content="#12293f">
+<title>評価制度・組織運営アプリ</title>
+<meta name="description" content="役割・数字・権限・報告ルールを1か所にまとめ、チームで運用するためのアプリ">
+<meta name="theme-color" content="#141c26">
+<meta name="color-scheme" content="light dark">
 <meta property="og:type" content="website">
-<meta property="og:title" content="評価制度・組織管理体制 運用アプリ">
-<meta property="og:description" content="社長個人の記憶や監視に頼らず、役割・数字・権限・報告ルールで組織を運営するための道具。ブラウザで開くだけで使えます。">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230f4c81'/><text y='72' x='50' font-size='60' text-anchor='middle' fill='white' font-family='sans-serif'>評</text></svg>">
+<meta property="og:title" content="評価制度・組織運営アプリ">
+<meta property="og:description" content="役割・目標・数字・報告ルールを1か所にまとめ、チーム全員が同じ情報を見ながら運用するためのアプリ。ブラウザで開くだけで使えます。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%232a5aa3'/><path d='M28 52l14 14 30-32' fill='none' stroke='white' stroke-width='11' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <style id="appStyle">
 __CSS__
 </style>
@@ -18,12 +19,15 @@ __CSS__
 <div id="app">
   <aside id="sidebar">
     <div class="brand">
-      <div class="title" id="brandTitle">評価制度・組織管理</div>
-      <div class="sub" id="brandSub">90日導入プロジェクト</div>
+      <div class="mark" id="brandMark">評</div>
+      <div class="txt">
+        <div class="title" id="brandTitle">評価制度・組織運営</div>
+        <div class="sub" id="brandSub">チームで使う運用アプリ</div>
+      </div>
     </div>
-    <div id="nav"></div>
+    <nav id="nav" aria-label="画面の切り替え"></nav>
     <div class="side-foot" id="sideFoot">
-      データはこのPCのブラウザ内に保存されます。<br>
+      データはこのパソコンの中に保存されます。<br>
       定期的にバックアップを保存してください。
     </div>
   </aside>
@@ -31,17 +35,19 @@ __CSS__
   <main id="main">
     <header class="topbar">
       <div>
-        <h1 id="topTitle">ダッシュボード</h1>
+        <h1 id="topTitle">ホーム</h1>
       </div>
       <span class="spacer"></span>
       <span id="topMeta"></span>
-      <button class="btn sm no-print" data-act="printView">印刷</button>
+      <button class="btn sm ghost no-print" data-act="toggleTheme" id="themeBtn"
+              title="画面の明るさを切り替える" aria-label="画面の明るさを切り替える"></button>
+      <button class="btn sm no-print" data-act="printView" title="この画面を印刷する">印刷</button>
       <div class="desc" id="topDesc"></div>
     </header>
-    <div id="view"></div>
+    <div id="view" tabindex="-1"></div>
   </main>
 </div>
-<div id="toasts"></div>
+<div id="toasts" role="status" aria-live="polite"></div>
 
 <noscript>
   <div style="padding:40px;font-family:sans-serif;">

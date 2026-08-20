@@ -1,5 +1,5 @@
 /* ============================================================
-   06-goals.js  会社・部門目標（指示書 第5章／シート2）
+   06-goals.js  会社・部門目標
    ============================================================ */
 
 function goalFields(level){
@@ -43,7 +43,7 @@ VIEWS.goals = {
       }).join(' ')+'</div></div>';
 
     if(comp.length > 5)
-      h += '<div class="alert bad"><span class="ic">!</span><div><div class="t">会社目標が'+comp.length+'個あります</div>'+
+      h += '<div class="alert bad"><span class="ic">'+ic('alert',15)+'</span><div class="body"><div class="t">会社目標が'+comp.length+'個あります</div>'+
            '<div class="d">3〜5個に絞ってください。</div></div></div>';
 
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
@@ -98,11 +98,11 @@ function renderGoalChain(){
   var h = '<div class="small muted" style="margin-bottom:8px;">会社目標に紐づく部門目標と、その責任者の担当社員のKPIを表示します。</div>';
   comp.forEach(function(g){
     var kids = d.goals.filter(function(x){ return x.level==='dept' && x.parentId===g.id; });
-    h += '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">'+
+    h += '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--surface);">'+
       '<div><b>'+esc(g.title)+'</b> <span class="small muted">'+esc(g.metric)+'</span> '+
       (g.owner?badge(empName(g.owner),'accent'):badge('責任者未設定','bad'))+'</div>';
     if(kids.length){
-      h += '<div style="margin-top:6px;padding-left:14px;border-left:2px solid #dfe4ea;">';
+      h += '<div style="margin-top:6px;padding-left:14px;border-left:2px solid var(--border);">';
       kids.forEach(function(k){
         h += '<div class="small">↳ ['+esc(k.dept||'部門未設定')+'] '+esc(k.title)+
              ' <span class="muted">'+esc(k.metric)+'</span> '+(k.owner?esc(empName(k.owner)):'<span class="badge bad">責任者未設定</span>')+'</div>';

@@ -3,8 +3,8 @@
    ============================================================ */
 
 VIEWS.settings = {
-  title:'設定・データ管理',
-  desc:'会社情報、承認の基準、データのバックアップを管理します。',
+  title:'設定・データ',
+  desc:'会社の情報、承認の基準、データのバックアップをまとめて管理します。',
   render:function(){
     var d = DB.data;
     var h = '';
@@ -18,10 +18,10 @@ VIEWS.settings = {
       fieldHtml({key:'hrOwner', label:'管理／人事担当', hint:'台帳、1on1、評価記録、文書管理'}, d.settings.hrOwner)+
       fieldHtml({key:'externalAdvisor', label:'外部確認（社労士等）', hint:'就業規則・賃金規程・報酬連動の確認'}, d.settings.externalAdvisor)+
       fieldHtml({key:'startDate', label:'プロジェクト開始日', type:'date', hint:'この日から90日の進捗を数えます。'}, d.settings.startDate)+
-      fieldHtml({key:'ceoEmpId', label:'社長にあたる社員', type:'select', options:empOptions(true),
-                 hint:'社員台帳に登録済みの場合に選択します。'}, d.settings.ceoEmpId)+
+      fieldHtml({key:'ceoEmpId', label:'最終決裁者にあたる人', type:'select', options:empOptions(true),
+                 hint:'社員台帳に登録済みの場合に選びます。'}, d.settings.ceoEmpId)+
       fieldHtml({key:'maxDirectReports', label:'直属部下の上限人数', type:'number', min:1, max:20,
-                 hint:'指示書 第14章：原則4〜6人以内。'}, d.settings.maxDirectReports)+
+                 hint:'原則4〜6人以内。'}, d.settings.maxDirectReports)+
       fieldHtml({key:'approvalAmount', label:'事前承認が必要な金額（円）', type:'number',
                  hint:'この金額以上の支出・契約は事前承認とします。'}, d.settings.approvalAmount)+
       fieldHtml({key:'meetingDay', label:'週次KPI会議の曜日', type:'select',
@@ -30,10 +30,10 @@ VIEWS.settings = {
       fieldHtml({key:'currentPeriod', label:'現在の評価期間', hint:'例：2026-Q3'}, d.settings.currentPeriod)+
       '</div>'+
       '<div class="btn-row"><button class="btn primary" data-act="setSave">設定を保存</button></div>',
-      {sub:'指示書 第2章のプロジェクト体制'});
+      {icon:'settings'});
 
     /* 報酬連動 */
-    h += card('報酬連動（慎重に）',
+    h += card('評価を給与に結びつける前に',
       '<div class="help-block">'+
       '<b>第1四半期：</b>評価のみ。給与・賞与へ原則連動させず、基準と評価者差を修正する。<br>'+
       '<b>第2四半期：</b>制度が安定した場合、賞与の一部への連動を検討する。<br>'+
@@ -44,10 +44,10 @@ VIEWS.settings = {
       '<span>就業規則・賃金規程との整合を社労士等へ確認済み'+
       (d.settings.laborCheckDate?'（'+esc(d.settings.laborCheckDate)+'）':'')+'</span></label>'+
       (d.settings.payLinked && !d.settings.laborCheckDone ?
-        '<div class="alert bad" style="margin-top:10px;"><span class="ic">!</span><div>'+
+        '<div class="alert bad" style="margin-top:10px;"><span class="ic">'+ic('alert',15)+'</span><div class="body">'+
         '<div class="t">確認が未完了のまま報酬連動が有効です</div>'+
         '<div class="d">減給・賞与・降格等への連動は、就業規則・賃金規程との整合や必要な手続を確認してから行ってください。</div></div></div>' : ''),
-      {sub:'指示書 第12章・注意書き'});
+      {icon:'alert'});
 
     /* 社内への配り方 */
     h += card('このアプリを社内に配る',
@@ -62,10 +62,12 @@ VIEWS.settings = {
                  hint:'ナレーション付きの解説です。'}, GUIDE_URL)+
       '</div>'+
       '<div class="btn-row">'+
-        '<a class="btn primary" href="'+GUIDE_URL+'" target="_blank" rel="noopener">使い方レクチャーを開く</a>'+
-        '<button class="btn" data-act="copyAppUrl">アドレスをコピー</button>'+
+        '<a class="btn primary" href="'+GUIDE_URL+'" target="_blank" rel="noopener">'+ic('play',14)+'使い方の動画を開く</a>'+
+        '<button class="btn" data-act="copyAppUrl">'+ic('copy',14)+'アドレスをコピー</button>'+
+        '<button class="btn" data-act="introShow">'+ic('info',14)+'はじめての案内をもう一度出す</button>'+
+        '<button class="btn" data-act="mePick">'+ic('users',14)+'「わたしの画面」の人を選び直す</button>'+
       '</div>',
-      {sub:'URLを開くだけで使えます'});
+      {icon:'cloud', sub:'アドレスを開くだけで使えます'});
 
     /* 共有（会社のメンバーと一緒に使う） */
     h += renderSyncCard();
@@ -75,7 +77,7 @@ VIEWS.settings = {
     try{ size = Math.round((localStorage.getItem(STORAGE_KEY)||'').length/1024); }catch(e){}
     h += card('データの保存とバックアップ',
       '<div class="help-block">'+
-      '<b>データはこのパソコンのブラウザ内に保存されます。</b> サーバーには送信されません。<br>'+
+      '<b>データはこのパソコンのブラウザの中に保存されます。</b> どこかへ自動で送られることはありません。<br>'+
       '別のパソコンで使う場合、またはバックアップを残す場合は「バックアップを保存」でファイルに書き出してください。'+
       'ブラウザの履歴削除でデータが消えることがあるため、<b>週に1回はバックアップ</b>を取ることをおすすめします。</div>'+
       '<div class="grid c3" style="margin-bottom:14px;">'+
@@ -92,15 +94,15 @@ VIEWS.settings = {
         '<button class="btn" data-act="dataDemo">サンプルデータを入れる</button>'+
         '<button class="btn danger" data-act="dataClear">全データを削除</button>'+
       '</div>',
-      {sub:'保存場所：ブラウザ内（localStorage）'});
+      {icon:'download', sub:'保存場所：このブラウザの中'});
 
     /* 使い方 */
-    h += card('このアプリの使い方',
+    h += card('この1年の流れ',
       '<div class="grid c2"><div class="col">'+
       '<h4>毎週やること</h4><ol class="list-plain" style="padding-left:18px;">'+
       '<li>週次KPI会議（45分）— 「週次KPI会議」画面で会議モードを開き、実績を入力する</li>'+
       '<li>未達項目に対策・担当者・期限を入れる</li>'+
-      '<li>社長判断事項を記録する</li></ol>'+
+      '<li>その場で決まらなかった件を記録する</li></ol>'+
       '<h4 style="margin-top:12px;">毎月やること</h4><ol class="list-plain" style="padding-left:18px;">'+
       '<li>全員と1on1（30分）— 「月次1on1」画面で記録</li>'+
       '<li>前回の約束の結果を確認する</li>'+
@@ -116,11 +118,10 @@ VIEWS.settings = {
       '<li>問題が起きたら5ステップで処理記録</li>'+
       '<li>例外を認めたら必ず記録する</li></ol>'+
       '</div></div>',
-      {sub:'困ったらダッシュボードの「いま対応すべきこと」を見てください'});
+      {icon:'book', sub:'迷ったら「会社全体」の“いま気になっていること”を見てください'});
 
     h += '<div class="small muted center" style="margin-top:20px;">'+
-      esc(APP_NAME)+'　v'+APP_VERSION+'　／　'+
-      '「評価制度・組織管理体制 90日導入プロジェクト指示書」（2026年8月 初版）に基づく社内運用ツール</div>';
+      esc(APP_NAME)+'　v'+APP_VERSION+'　／　社内で使う組織運営アプリ</div>';
     return h;
   }
 };
@@ -139,7 +140,7 @@ function renderSyncCard(){
     '<br>③ <b>共有サーバー</b>：社外や自宅からも同じデータを見たい場合。アドレスと合言葉を入れます。'+
     '</div>';
 
-  body += '<div class="alert '+(mode==='local'?'':'ok')+'"><span class="ic">'+(mode==='local'?'□':'✓')+'</span>'+
+  body += '<div class="alert '+(mode==='local'?'':'ok')+'"><span class="ic">'+ic(mode==='local'?'monitor':'check',15)+'</span>'+
     '<div style="flex:1;"><div class="t">いまの共有方法：'+esc(syncModeLabel())+'</div>'+
     '<div class="d">'+esc(SYNC.message || (mode==='local'
       ? 'データはこのパソコンのブラウザ内だけに保存されています。'
@@ -431,7 +432,8 @@ function buildDemoData(){
       { ind:'CPA（円）', tgt:20000, owner:mkt.id, low:true, src:'広告管理画面' },
       { ind:'問い合わせ件数（件）', tgt:60, owner:mkt.id, src:'フォーム集計' },
       { ind:'解約率（%）', tgt:2.0, owner:cs.id, low:true, src:'契約管理台帳' },
-      { ind:'納期遵守率（%）', tgt:95, owner:dev.id, src:'課題管理ツール' }
+      { ind:'納期遵守率（%）', tgt:95, owner:dev.id, src:'課題管理ツール' },
+      { ind:'商談数（既存顧客・件）', tgt:12, owner:sales1.id, src:'商談記録' }
     ];
     defs.forEach(function(x, i){
       w.rows.push({ id:uid('row'), indicator:x.ind, target:x.tgt, actual:actuals[i],
@@ -439,7 +441,7 @@ function buildDemoData(){
     });
     return w;
   }
-  var w2 = makeWeek(1, [150, 980, 26000, 42, 3.2, 92]);
+  var w2 = makeWeek(1, [150, 980, 26000, 42, 3.2, 92, 9]);
   w2.rows[2].cause = '新規媒体のクリック単価が想定より高い';
   w2.rows[2].action = '効果の低い媒体を停止し、既存媒体に予算を寄せる';
   w2.rows[2].due = fmtDate(new Date(new Date(w2.weekOf).getTime()+7*86400000));
@@ -450,7 +452,7 @@ function buildDemoData(){
   w2.nextCheck = '媒体停止後のCPAの変化、導入サポートの実施件数';
   d.kpiWeeks.push(w2);
 
-  var w1 = makeWeek(0, [165, 1050, 23000, 48, 2.9, 96]);
+  var w1 = makeWeek(0, [165, 1050, 23000, 48, 2.9, 96, 10]);
   w1.rows[2].cause = '媒体停止の効果が出始めているが目標には未達';
   w1.rows[2].action = 'LPの申込フォームを短縮して転換率を上げる';
   w1.rows[2].owner = mkt.id;
@@ -557,21 +559,19 @@ function buildDemoData(){
   });
   for(var i=0;i<7;i++) d.firstSteps[i] = true;
 
-  /* ---------- 「負のシステム」対策まわりのサンプル ---------- */
+  /* ---------- 決め方・任せ方・お金まわりのサンプル ---------- */
   function dayOff(n){ return fmtDate(new Date(Date.now()+n*86400000)); }
   function hourOff(n){ var t=new Date(); t.setHours(t.getHours()+n); return t.toISOString(); }
 
-  /* 将来像と離職リスク */
+  /* これからの役割について話した日 */
   salesMgr.nextRole = '半年後：営業とマーケの両部門を統括。1年後：予算配分と採用の決裁権を移譲する。';
-  salesMgr.growthTalkAt = dayOff(-20); salesMgr.retentionRisk = '低い';
+  salesMgr.growthTalkAt = dayOff(-20);
   sales1.nextRole = '半年後：新人1名の指導役。1年後：既存顧客チームのリーダー。';
-  sales1.growthTalkAt = dayOff(-14); sales1.retentionRisk = '中くらい';
-  mkt.retentionRisk = '高い';          /* 将来像が空 → アラートが出る例 */
-  dev.retentionRisk = '中くらい';
+  sales1.growthTalkAt = dayOff(-14);
   cs.nextRole = '半年後：問い合わせ対応の手順書を整備し、新人教育を担当する。';
-  cs.growthTalkAt = dayOff(-10); cs.retentionRisk = '低い';
+  cs.growthTalkAt = dayOff(-10);
 
-  /* 委任カード */
+  /* 任せた仕事 */
   d.delegations.push({ id:uid('dlg'), title:'新規顧客向け提案書の型をつくる', employeeId:sales2.id,
     startDate:dayOff(-10), outcome:'提案書テンプレート1本と、記入例2社分。営業3名が使える状態にする。',
     due:dayOff(6), ownArea:'構成・見せ方・使うツールは本人が決めてよい。',
@@ -583,7 +583,7 @@ function buildDemoData(){
     startDate:dayOff(-25), outcome:'翌月7日までに試算表を提出。手順書を1本残す。',
     due:dayOff(12), ownArea:'処理の順番、担当への依頼方法は本人が決めてよい。',
     noGo:'請求・支払の確認手順を省略しないこと。',
-    checkAt:dayOff(3), helpAt:'社長。他部門が資料を出さない場合は、その日のうちに連絡する。',
+    checkAt:dayOff(3), helpAt:'山田 太郎。他部門から資料が出てこない場合は、その日のうちに連絡する。',
     state:'open', retryCount:1,
     feedback:'前回：請求リストの突合を1人で抱えていた。手順を分けて2人で確認する形に変更。',
     checks:[{ id:uid('chk'), date:dayOff(-12), doneAt:hourOff(-24*12),
@@ -594,18 +594,26 @@ function buildDemoData(){
     startDate:dayOff(-6), outcome:'直近3か月の解約20件について、理由を分類して一覧にする。',
     due:dayOff(9), ownArea:'', noGo:'', checkAt:'', helpAt:'', state:'open', checks:[] });
 
-  /* 重大決裁 */
-  d.decisions.push({ id:uid('dec'), title:'マーケ担当の伊藤を営業部へ配置転換する',
-    kind:'people', raisedAt:hourOff(-6), emotion:2, stage:'holding', cooled:false,
-    facts:'CPAが3か月連続で目標未達。ただし直近1か月は改善傾向。施策の記録が個人のPCに残っている。',
+  d.delegations.push({ id:uid('dlg'), title:'既存顧客20社に追加提案の型をつくる',
+    employeeId:sales1.id, startDate:dayOff(-4),
+    outcome:'よく使われている組み合わせを3パターンにまとめ、提案書のひな形をつくる。',
+    due:dayOff(11), ownArea:'提案する組み合わせの選び方と、声をかける順番。',
+    noGo:'価格の値引きは提示しない。条件の変更は上司に確認する。',
+    checkAt:dayOff(2), helpAt:'佐藤 花子。3社に断られた時点で、いったん相談する。',
+    state:'open', checks:[{ id:uid('chk'), date:dayOff(2), doneAt:'', note:'' }] });
+
+  /* 重要な決定 */
+  d.decisions.push({ id:uid('dec'), title:'広告の出稿を一度止めて、配分を見直す',
+    kind:'spend', raisedAt:hourOff(-6), stage:'holding',
+    facts:'CPAが3か月連続で目標未達。ただし直近1か月は改善傾向。施策の記録が個人のパソコンに残っている。',
     lossNow:'', lossWait:'', devilName:'', devilNote:'', options:'',
     createdAt:hourOff(-6) });
 
-  d.decisions.push({ id:uid('dec'), title:'B社との年間契約を更新しない',
-    kind:'contract', raisedAt:hourOff(-72), emotion:1, stage:'decided', cooled:true, heldOk:true,
+  d.decisions.push({ id:uid('dec'), title:'B社との年間契約を更新するかどうか',
+    kind:'contract', raisedAt:hourOff(-72), stage:'decided', heldOk:true,
     facts:'年間120万円。過去1年の受注貢献は2件・粗利48万円。担当窓口が3回交代した。',
     lossNow:'更新期限まで2週間あり、いま決めなくても損失はない。',
-    lossWait:'感情で切ると、紹介経由の見込み客2社との関係も同時に失う可能性がある。',
+    lossWait:'勢いで切ると、紹介経由の見込み客2社との関係も同時に失う可能性がある。',
     devilName:'佐藤 花子', devilNote:'紹介経由の案件が年2件ある。取引を切ると紹介元との関係も切れる恐れ。',
     options:'①更新しない ②金額を下げて半年更新 ③紹介の取り決めだけ残して契約は終了',
     decision:'③を選択。契約は終了するが、紹介の取り決めは別途書面で残す。',
@@ -657,7 +665,7 @@ function buildDemoData(){
   d.capital.periods.push({ id:uid('cp'), label:qPrev, profit:4200000, note:'前期。再投資の仕組みを作る前。' });
   d.capital.periods.push({ id:uid('cp'), label:qNow,  profit:5100000, note:'再投資枠の先取りを開始した期。' });
   [[qPrev,'reinvest','people','営業メンバーの外部研修',180000,''],
-   [qPrev,'nonbiz','','社長車の買い替え',1800000,''],
+   [qPrev,'nonbiz','','社用車の買い替え',1800000,''],
    [qPrev,'reinvest','sales','広告media Bの追加出稿',300000,''],
    [qNow,'reinvest','people','評価制度の導入支援（社労士）',250000,'鈴木 一郎'],
    [qNow,'reinvest','sales','見込み客リストの購入と架電代行',600000,'鈴木 一郎'],

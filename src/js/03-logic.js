@@ -1,20 +1,28 @@
 /* ============================================================
    03-logic.js  判定ロジック
-   指示書のルールに照らして「抜け・遅れ・違反」を自動で洗い出す
+   会社で決めたルールに照らして「抜け・遅れ・違反」を自動で洗い出す
    ============================================================ */
 
-/* ---------- 社員の整備状況（Week 1 台帳の完成度） ---------- */
+/* ---------- 社員台帳の記入状況 ----------
+   ★ が付いた5項目は、これがないと目標・KPI・評価が動かない土台。
+   それ以外は、落ち着いてから埋めればよい項目。 */
 var LEDGER_CHECKS = [
-  { key:'manager',   label:'直属上司',        test:function(e){ return !!e.manager || e.isTop; } },
-  { key:'role',      label:'役割',            test:function(e){ return !!(e.roleTitle||'').trim(); } },
-  { key:'duties',    label:'主要業務3〜5個',  test:function(e){ return lines(e.mainDuties).length >= 3; } },
-  { key:'output',    label:'成果物',          test:function(e){ return !!(e.deliverables||'').trim(); } },
-  { key:'kpi',       label:'KPIと目標値',     test:function(e){ return lines(e.kpis).length >= 1 && !!(e.kpiTarget||'').trim(); } },
-  { key:'dataSrc',   label:'実績データの所在',test:function(e){ return !!(e.dataSource||'').trim(); } },
-  { key:'authority', label:'本人判断の範囲',  test:function(e){ return !!(e.authority||'').trim(); } },
-  { key:'approval',  label:'要承認事項',      test:function(e){ return !!(e.approvals||'').trim(); } },
-  { key:'handover',  label:'引継ぎ・保存場所',test:function(e){ return !!(e.handover||'').trim(); } }
+  { key:'manager',   label:'直属の上司',      core:true, test:function(e){ return !!e.manager || e.isTop; } },
+  { key:'role',      label:'役割',            core:true, test:function(e){ return !!(e.roleTitle||'').trim(); } },
+  { key:'output',    label:'成果物',          core:true, test:function(e){ return !!(e.deliverables||'').trim(); } },
+  { key:'kpi',       label:'KPI',             core:true, test:function(e){ return lines(e.kpis).length >= 1; } },
+  { key:'approval',  label:'承認が必要なこと',core:true, test:function(e){ return !!(e.approvals||'').trim(); } },
+  { key:'duties',    label:'主な仕事',        test:function(e){ return lines(e.mainDuties).length >= 3; } },
+  { key:'target',    label:'目標値',          test:function(e){ return !!(e.kpiTarget||'').trim(); } },
+  { key:'dataSrc',   label:'数字の出どころ',  test:function(e){ return !!(e.dataSource||'').trim(); } },
+  { key:'authority', label:'決めてよい範囲',  test:function(e){ return !!(e.authority||'').trim(); } },
+  { key:'handover',  label:'資料の保存場所',  test:function(e){ return !!(e.handover||'').trim(); } }
 ];
+
+/* 土台の5項目が埋まっているか */
+function ledgerCoreDone(e){
+  return LEDGER_CHECKS.filter(function(c){ return c.core; }).every(function(c){ return c.test(e); });
+}
 
 function ledgerStatus(e){
   var missing = [];
@@ -32,7 +40,7 @@ function directReports(empId){
   return DB.data.employees.filter(function(e){ return e.manager === empId; });
 }
 
-/* 社長（最終責任者）の社員ID：設定の ceoEmpId または isTop フラグ */
+/* 最終決裁者の社員ID：設定の ceoEmpId または isTop フラグ */
 function topPerson(){
   var d = DB.data;
   if(d.settings.ceoEmpId){ var e = byId(d.employees, d.settings.ceoEmpId); if(e) return e; }
@@ -207,46 +215,46 @@ function goalProgress(g){
    ============================================================ */
 function buildAlerts(){
   var d = DB.data, a = [];
-  function add(level, title, detail, view, count){
-    a.push({ level:level, title:title, detail:detail, view:view, count:count||0 });
+  function add(level, title, detail, view, count, tab){
+    a.push({ level:level, title:title, detail:detail, view:view, count:count||0, tab:tab||'' });
   }
 
   /* --- 体制 --- */
   if(!d.settings.projectLead)
-    add('bad','社内プロジェクト責任者が未任命','指示書の最初の一歩です。1名を決めてください。','settings');
+    add('bad','進行役がまだ決まっていません','この取り組みを進める担当を1名決めてください。設定画面で入力できます。','settings');
   if(!d.employees.length)
-    add('bad','社員が1人も登録されていません','まず全社員一覧（社員・役割台帳）を作ります。','employees');
+    add('bad','まだ誰も登録されていません','はじめに「社員・役割台帳」でメンバーを登録します。','employees');
 
   /* --- Week1 台帳の抜け --- */
   var noMgr = d.employees.filter(function(e){ return !e.manager && !e.isTop; });
   if(noMgr.length)
-    add('bad','直属上司が未確定の社員が'+noMgr.length+'名',
-        noMgr.map(function(e){return e.name;}).join('、'),'employees',noMgr.length);
+    add('bad','直属の上司が未記入の人が'+noMgr.length+'名',
+        noMgr.map(function(e){return e.name;}).join('、')+' — 誰に報告し、誰に相談するかを決めます。','employees',noMgr.length);
 
   var noOut = d.employees.filter(function(e){ return !(e.deliverables||'').trim(); });
   if(noOut.length)
-    add('warn','成果物が定義されていない社員が'+noOut.length+'名',
-        '「何ができていれば仕事をしたと言えるか」を決めます。','employees',noOut.length);
+    add('warn','成果物が未記入の人が'+noOut.length+'名',
+        '「何ができていれば、その仕事は終わりか」を決めて記入します。','employees',noOut.length);
 
   var noKpi = d.employees.filter(function(e){ return lines(e.kpis).length === 0; });
   if(noKpi.length)
-    add('warn','KPIが未設定の社員が'+noKpi.length+'名',
-        '数値で成果を確認できない状態です。','employees',noKpi.length);
+    add('warn','KPIが未記入の人が'+noKpi.length+'名',
+        '数字で成果を確かめられる指標を、1〜3個決めます。','employees',noKpi.length);
 
   var noData = d.employees.filter(function(e){ return lines(e.kpis).length>0 && !(e.dataSource||'').trim(); });
   if(noData.length)
-    add('warn','実績データの所在が不明な社員が'+noData.length+'名',
-        'KPIはあるが「正とするデータ」が決まっていません。','employees',noData.length);
+    add('warn','数字の出どころが未記入の人が'+noData.length+'名',
+        'KPIはあるものの、どのファイルの数字を基準にするかが決まっていません。','employees',noData.length);
 
   var onlyCeo = d.employees.filter(function(e){ return e.ceoOnlyKnows; });
   if(onlyCeo.length)
-    add('bad','社長だけが仕事内容を把握している社員が'+onlyCeo.length+'名',
-        onlyCeo.map(function(e){return e.name;}).join('、')+' — 指示書の重点確認項目です。','employees',onlyCeo.length);
+    add('warn','中身を知っているのが1人だけの仕事が'+onlyCeo.length+'件',
+        '手順の記録と引き継ぎ先を決めておくと、休みや異動があっても仕事が止まりません。','employees',onlyCeo.length);
 
   var noBackup = d.employees.filter(function(e){ return !(e.backup||'').trim(); });
   if(noBackup.length >= Math.max(1, Math.ceil(d.employees.length*0.5)) && d.employees.length)
-    add('warn','代替要員が未定の社員が'+noBackup.length+'名',
-        '担当者が抜けた時に業務が止まります。','employees',noBackup.length);
+    add('warn','引き継ぎ先が未記入の人が'+noBackup.length+'名',
+        '休みや急な異動のときに、誰が引き継ぐかを決めておきます。','employees',noBackup.length);
 
   /* --- 管理スパン（第14章：直属部下は4〜6人以内） --- */
   var maxDr = num(d.settings.maxDirectReports, 6);
@@ -312,7 +320,7 @@ function buildAlerts(){
   var oo = oneOnOneRate();
   if(oo.total && oo.missing.length){
     var lvl = projectDay().week >= 4 ? 'warn' : 'warn';
-    add(lvl,'今月の1on1が未実施：'+oo.missing.length+'名',
+    add(lvl,'今月の1on1がまだの人が'+oo.missing.length+'名',
         oo.missing.slice(0,6).map(function(e){return e.name;}).join('、')+(oo.missing.length>6?' ほか':''),'oneonone',oo.missing.length);
   }
   /* 約束の未確認 */
@@ -325,10 +333,10 @@ function buildAlerts(){
   var rc = reportCompliance();
   if(rc.late.length)
     add('bad','報告期限を守れなかった案件が'+rc.late.length+'件',
-        '報告が遅れる原因（言いにくい・忘れる・判断に迷う）を1on1で扱ってください。','reports',rc.late.length);
+        '報告が遅れる原因（言いにくい・忘れる・判断に迷う）を1on1で扱ってください。','reports',rc.late.length,'log');
   var pending = d.reports.filter(function(r){ return r.needApproval && !r.approvedAt && r.status!=='rejected'; });
   if(pending.length)
-    add('warn','承認待ちが'+pending.length+'件','承認が滞ると現場が止まります。','reports',pending.length);
+    add('warn','承認待ちが'+pending.length+'件','承認が滞ると現場が止まります。','reports',pending.length,'approval');
 
   /* --- 評価（第10・12章） --- */
   var period = d.settings.currentPeriod;
@@ -351,49 +359,49 @@ function buildAlerts(){
     add('warn','等級が未設定の社員が'+noGrade.length+'名','G1〜G5への仮格付けを行います。','grades',noGrade.length);
 
   /* ============================================================
-     ここから下は「負のシステム」構造分析レポートに基づく判定
+     ここから下は、決め方・任せ方・お金の使い方についての判定
      ============================================================ */
 
-  /* --- 意思決定の防波堤（第11章 第1層） --- */
+  /* --- 重要な決定（24時間おいてから確定する） --- */
   var readyDec = d.decisions.filter(function(x){
     return (x.stage==='holding'||x.stage==='draft') && hoursLeft(holdUntil(x, 24)) <= 0;
   });
   if(readyDec.length)
-    add('warn','冷却期間が明けた決裁が'+readyDec.length+'件',
-        readyDec.slice(0,3).map(function(x){return x.title;}).join('／')+' — 落ち着いた状態で判断してください。','decisions',readyDec.length);
+    add('warn','待ち時間が明けた決定が'+readyDec.length+'件',
+        readyDec.slice(0,3).map(function(x){return x.title;}).join('／')+' — 24時間が過ぎました。確定するか見送るかを決めてください。','decisions',readyDec.length);
 
   var noDevil = d.decisions.filter(function(x){
     return x.stage!=='decided' && x.stage!=='dropped' && (!x.devilName || !String(x.devilNote||'').trim());
   });
   if(noDevil.length)
-    add('warn','反対意見の確認が済んでいない決裁が'+noDevil.length+'件',
-        '重大判断には、反対意見を言う役割を1人置きます。反論が出ない決裁は、賛成されたのではなく言えなかっただけかもしれません。','decisions',noDevil.length);
+    add('warn','反対意見の確認が済んでいない決定が'+noDevil.length+'件',
+        '大きな決定には、反対の立場から意見を言う人を1名置きます。反論が出ないときは、納得ではなく言いにくいだけかもしれません。','decisions',noDevil.length);
 
   var forced = d.decisions.filter(function(x){ return x.stage==='decided' && x.heldOk===false; });
   if(forced.length >= 2)
-    add('bad','冷却期間を守らずに確定した決裁が'+forced.length+'件',
-        '感情と決裁の分離は、他のすべてに波及する上流指標です。','decisions',forced.length);
+    add('warn','待ち時間をおかずに確定した決定が'+forced.length+'件',
+        '急ぎの事情が続いているのかもしれません。手順のほうに無理がないか、一度見直してみてください。','decisions',forced.length);
 
   var readyVen = d.ventures.filter(function(v){
     return (!v.stage||v.stage==='draft') && hoursLeft(holdUntil(v, 48)) <= 0;
   });
   if(readyVen.length)
-    add('warn','審査待ちの新規案件が'+readyVen.length+'件',
-        '48時間の保留が明けました。1枚企画書を見て、着手するか見送るかを決めてください。','decisions',readyVen.length);
+    add('warn','判断待ちの新しい取り組みが'+readyVen.length+'件',
+        '48時間が過ぎました。企画書を見て、始めるか見送るかを決めてください。','decisions',readyVen.length);
 
   var noExit = d.ventures.filter(function(v){
     return (v.stage==='approved'||v.stage==='running') && !String(v.exitCond||'').trim();
   });
   if(noExit.length)
-    add('bad','撤退条件のない新規案件が'+noExit.length+'件',
-        'あとから撤退条件を決めることはできません。','decisions',noExit.length);
+    add('bad','撤退の条件が決まっていない取り組みが'+noExit.length+'件',
+        'いつ・何を見てやめるかは、始める前に決めておきます。あとからでは決めにくくなります。','decisions',noExit.length);
 
-  /* --- 委任カード（第11章 第2層） --- */
+  /* --- 任せた仕事（6項目と中間確認） --- */
   var openDlg = d.delegations.filter(function(x){ return !x.state || x.state==='open'; });
   var noCheck = openDlg.filter(function(x){ return !nextCheckDate(x); });
   if(noCheck.length)
-    add('bad','中間確認日が未設定の委任が'+noCheck.length+'件',
-        noCheck.slice(0,3).map(function(x){return x.title;}).join('／')+' — 中間確認がないと「任せっぱなし」になります。','delegation',noCheck.length);
+    add('bad','途中の確認日が決まっていない仕事が'+noCheck.length+'件',
+        noCheck.slice(0,3).map(function(x){return x.title;}).join('／')+' — 確認日がないと、状況が見えないまま期限を迎えがちです。','delegation',noCheck.length);
 
   var lateCheck = openDlg.filter(function(x){
     var nc = nextCheckDate(x); return nc && nc < todayStr();
@@ -413,30 +421,30 @@ function buildAlerts(){
         '成果・期限・裁量・禁止事項・中間確認・相談条件のどれかが空欄です。','delegation',thinDlg.length);
 
   /* --- 人材の定着（第7章 逆選抜） --- */
-  var riskNoPath = d.employees.filter(function(e){
-    return e.retentionRisk==='高い' && !String(e.nextRole||'').trim();
+  var noPath = d.employees.filter(function(e){
+    return !e.isTop && !String(e.nextRole||'').trim() && !String(e.growthTalkAt||'').trim();
   });
-  if(riskNoPath.length)
-    add('bad','離職リスクが高いのに将来像を示せていない社員が'+riskNoPath.length+'名',
-        riskNoPath.map(function(e){return e.name;}).join('、')+
-        ' — 「育てると辞める」のではなく、育った人に残る理由を示せていない状態です。','employees',riskNoPath.length);
+  if(noPath.length && d.employees.length >= 3)
+    add('warn','これからの役割をまだ話せていない人が'+noPath.length+'名',
+        '半年後・1年後に何を任せたいかを伝えると、次に何を伸ばせばよいかが見えます。1on1で話す内容の候補です。',
+        'employees',noPath.length);
 
   /* --- ガバナンス（第11章 第4層） --- */
   var noContract = d.partners.filter(function(p){ return !p.contractDone; });
   if(noContract.length)
     add('bad','契約・合意が文書化されていない関係者が'+noContract.length+'件',
         noContract.map(function(p){return p.name;}).join('、')+
-        ' — 信頼できる相手だから契約が要らないのではなく、信頼を長く保つために契約します。','capital',noContract.length);
+        ' — 信頼できる相手だから契約が要らないのではなく、信頼を長く保つために契約します。','capital',noContract.length,'partner');
 
   var noInterest = d.partners.filter(function(p){ return !String(p.interest||'').trim(); });
   if(noInterest.length)
     add('warn','相手の利害を書けていない関係者が'+noInterest.length+'件',
-        'ここを書けない相手とは、必ずどこかで期待値がずれます。','capital',noInterest.length);
+        'ここを書けない相手とは、必ずどこかで期待値がずれます。','capital',noInterest.length,'partner');
 
   var dueCheck = d.partners.filter(function(p){ return p.nextCheck && p.nextCheck < todayStr(); });
   if(dueCheck.length)
     add('warn','定期確認の期日を過ぎた関係者が'+dueCheck.length+'件',
-        dueCheck.map(function(p){return p.name;}).join('、'),'capital',dueCheck.length);
+        dueCheck.map(function(p){return p.name;}).join('、'),'capital',dueCheck.length,'partner');
 
   /* --- 資本配分（第11章 第4層） --- */
   var capRule = (d.capital && d.capital.rule) || {};

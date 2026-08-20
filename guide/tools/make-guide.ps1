@@ -53,10 +53,14 @@ const meta = ctx.SCENARIO.map(function(s,i){
     sub:  plain(s.sub||''),
     say:  plain(s.say || ((s.text||s.chapterDesc||'') + ' ' + (s.sub||''))) };
 });
-process.stdout.write(JSON.stringify(meta));
+fs.writeFileSync(process.argv[3], JSON.stringify(meta), 'utf8');
 "@
 $scenarioPath = Join-Path $tools 'scenario.js'
-$metaJson = & node $dump $scenarioPath
+# 標準出力経由だと日本語が化けるため、いったんUTF-8のファイルに書き出して読み直す
+$metaPath = Join-Path $work 'meta.json'
+& node $dump $scenarioPath $metaPath | Out-Null
+if (-not (Test-Path $metaPath)) { throw "台本の読み込みに失敗しました" }
+$metaJson = Read8 $metaPath
 $meta = $metaJson | ConvertFrom-Json
 $total = $meta.Count
 Write-Host "  コマ数: $total  合計 $([math]::Round(($meta | Measure-Object -Property sec -Sum).Sum,0)) 秒"

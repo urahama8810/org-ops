@@ -1,10 +1,10 @@
 /* ============================================================
-   16-decisions.js  意思決定の防波堤
+   16-decisions.js  重要な決定
    ------------------------------------------------------------
-   構造分析レポート 第11章 第1層／第12章 0〜3日
-     ・重大決裁の24時間ルール（怒り・焦りが強いときは確定しない）
-     ・新規案件の48時間ルール（口頭決裁の禁止・1枚企画書）
-     ・重大判断には反対意見を言う役割を1人置く
+   会社として大きな決定をするときの、共通の手順。
+     ・重要な決定は、話が持ち上がってから24時間おいて確定する
+     ・新しい取り組みは、1枚にまとめて48時間おいてから判断する
+     ・大きな決定には、反対の立場から意見を言う人を1名置く
    ============================================================ */
 
 /* ---------- 判定ロジック ---------- */
@@ -13,12 +13,7 @@ function decisionKind(key){
   for(var i=0;i<DECISION_KINDS.length;i++) if(DECISION_KINDS[i].key===key) return DECISION_KINDS[i];
   return DECISION_KINDS[DECISION_KINDS.length-1];
 }
-function emotionOf(v){
-  var n = num(v,0);
-  for(var i=0;i<EMOTION_LEVELS.length;i++) if(EMOTION_LEVELS[i].v===n) return EMOTION_LEVELS[i];
-  return EMOTION_LEVELS[0];
-}
-/* 冷却期間の終了時刻 */
+/* 待ち時間が明ける時刻 */
 function holdUntil(rec, hours){
   var base = rec.raisedAt || rec.createdAt;
   if(!base) return '';
@@ -33,26 +28,23 @@ function hoursLeft(iso){
 }
 function holdLabel(iso){
   var h = hoursLeft(iso);
-  if(h <= 0) return '<span class="badge ok">冷却期間が明けました</span>';
+  if(h <= 0) return '<span class="badge ok">待ち時間が明けました</span>';
   if(h < 1) return '<span class="badge warn">あと'+Math.ceil(h*60)+'分</span>';
   return '<span class="badge warn">あと'+Math.ceil(h)+'時間</span>';
 }
 
-/* 決裁を確定してよいか。理由付きで返す */
+/* 確定してよい状態か。理由をつけて返す */
 function decisionCanDecide(dec){
   var reasons = [];
-  var em = emotionOf(dec.emotion);
-  if(em.hold && !dec.cooled)
-    reasons.push('登録時に「'+em.label+'」でした。落ち着いてから確定してください。');
   var until = holdUntil(dec, decisionKind(dec.kind).hold);
   if(hoursLeft(until) > 0)
-    reasons.push('24時間ルールの冷却期間中です（'+fmtJp(until)+'まで）。');
+    reasons.push('まだ24時間の待ち時間の中です（'+fmtJp(until)+'まで）。');
   if(!dec.devilName)
-    reasons.push('反対意見を言う役割が指名されていません。');
+    reasons.push('反対の立場から意見を言う人が決まっていません。');
   if(!String(dec.devilNote||'').trim())
     reasons.push('反対意見の内容が記録されていません。');
   if(!String(dec.lossNow||'').trim() || !String(dec.lossWait||'').trim())
-    reasons.push('「今すぐ決めない損失」と「衝動的に決める損失」の両方を書いてください。');
+    reasons.push('「いま決めないことで失うもの」と「急いで決めて外したときに失うもの」の両方を書いてください。');
   return { ok:reasons.length===0, reasons:reasons };
 }
 
@@ -68,18 +60,18 @@ function ventureFill(v){
 function ventureCanStart(v){
   var reasons = [];
   var fill = ventureFill(v);
-  if(fill.missing.length) reasons.push('1枚企画書の未記入：'+fill.missing.join('、'));
+  if(fill.missing.length) reasons.push('企画書の未記入：'+fill.missing.join('、'));
   var until = holdUntil(v, 48);
-  if(hoursLeft(until) > 0) reasons.push('48時間ルールの保留中です（'+fmtJp(until)+'まで）。');
+  if(hoursLeft(until) > 0) reasons.push('まだ48時間の待ち時間の中です（'+fmtJp(until)+'まで）。');
   return { ok:reasons.length===0, reasons:reasons, fill:fill };
 }
 
-/* 意思決定まわりの先行指標（レポート 表7） */
+/* 決定まわりの集計 */
 function decisionStats(){
   var d = DB.data;
   var decs = d.decisions, vens = d.ventures;
   var decided = decs.filter(function(x){ return x.stage==='decided'; });
-  /* 保留率＝確定したもののうち、冷却期間を守って確定したもの */
+  /* 手順どおりの割合＝確定したもののうち、待ち時間を守ったもの */
   var kept = decided.filter(function(x){ return x.heldOk; }).length;
   var vStarted = vens.filter(function(v){ return v.stage==='approved'||v.stage==='running'||v.stage==='closed'; });
   var vFull = vens.filter(function(v){ return ventureFill(v).rate===100; }).length;
@@ -97,41 +89,59 @@ function decisionStats(){
 var decTab = 'decision';
 
 VIEWS.decisions = {
-  title:'意思決定の防波堤',
-  desc:'感情が強いときに、重大な判断を確定させないための仕組みです。',
+  title:'重要な決定',
+  desc:'大きな決定を、その場の勢いではなく、決めた手順で進めるための画面です。',
   render:function(){
     var d = DB.data, st = decisionStats(), h = '';
 
     h += '<div class="notice">'+
-      '<b>目標は「怒らない経営者」になることではありません。</b>'+
-      '怒りや衝動が、会社の人事・投資・契約・撤退の判断を<b>直接支配できない状態</b>をつくることです。'+
-      '重大な判断は、ここに登録して24時間置いてから確定します。新規案件は1枚企画書を書いて48時間置きます。'+
+      '<b>急いで決めたくなるときほど、いったんおいてから決めます。</b>'+
+      '人の配置、契約の解除、大きな支出のように、あとから戻しにくい決定は、'+
+      'ここに登録して<b>24時間おいてから</b>確定します。'+
+      '新しい取り組みは、目的と撤退の条件を1枚にまとめ、<b>48時間おいてから</b>判断します。'+
+      'この手順は、役職に関係なく全員に同じように当てはまります。'+
       '</div>';
 
     h += '<div class="grid c4" style="margin-bottom:16px;">'+
-      tile('保留中の重大決裁', st.holding+'<small>件</small>', '冷却期間または論点整理中', st.holding?'warn':'ok')+
-      tile('確定した決裁', st.decided+'<small>件</small>',
-           st.holdRate===null?'—':'ルール遵守 '+st.holdRate+'%',
+      tile('検討中の決定', st.holding+'<small>件</small>', '時間をおいている、または論点を整理中', st.holding?'warn':'ok', 'clock')+
+      tile('確定した決定', st.decided+'<small>件</small>',
+           st.holdRate===null?'—':'手順どおり '+st.holdRate+'%',
            st.holdRate===null?'':(st.holdRate>=80?'ok':'bad'))+
-      tile('新規案件（企画書）', st.ventures+'<small>件</small>',
+      tile('新しい取り組み', st.ventures+'<small>件</small>',
            st.sheetRate===null?'—':'記入完了 '+st.sheetRate+'%',
-           st.sheetRate===null?'':(st.sheetRate>=80?'ok':'warn'))+
-      tile('撤退条件の設定率', st.exitRate===null?'—':st.exitRate+'<small>%</small>',
-           '「様子を見る」は撤退条件ではありません', st.exitRate===null?'':(st.exitRate>=80?'ok':'bad'))+
+           st.sheetRate===null?'':(st.sheetRate>=80?'ok':'warn'), 'sparkle')+
+      tile('撤退条件を決めた割合', st.exitRate===null?'—':st.exitRate+'<small>%</small>',
+           '「様子を見る」は条件になりません', st.exitRate===null?'':(st.exitRate>=80?'ok':'bad'))+
       '</div>';
 
     h += '<div class="tabs">'+
-      '<div class="tab '+(decTab==='decision'?'active':'')+'" data-act="decTab" data-t="decision">重大決裁（24時間ルール） ('+d.decisions.length+')</div>'+
-      '<div class="tab '+(decTab==='venture'?'active':'')+'" data-act="decTab" data-t="venture">新規案件（1枚企画書・48時間） ('+d.ventures.length+')</div>'+
-      '<div class="tab '+(decTab==='rule'?'active':'')+'" data-act="decTab" data-t="rule">ルールの考え方</div>'+
+      '<button type="button" class="tab '+(decTab==='decision'?'active':'')+'" data-act="decTab" data-t="decision">重要な決定（24時間おく） ('+d.decisions.length+')</button>'+
+      '<button type="button" class="tab '+(decTab==='venture'?'active':'')+'" data-act="decTab" data-t="venture">新しい取り組み（48時間おく） ('+d.ventures.length+')</button>'+
       '</div>';
 
-    if(decTab==='decision')      h += renderDecisionList();
-    else if(decTab==='venture')  h += renderVentureList();
-    else                         h += renderDecisionRule();
+    if(decTab==='venture') h += renderVentureList();
+    else                   h += renderDecisionList();
+    h += renderThirdOptions();
     return h;
   }
 };
+VIEWS.decisions.setTab = function(t){ decTab = t; };   /* 他の画面からタブを指定できるようにする */
+
+
+/* やり方を見直すとき、正反対に振れないための目安。読みたい人だけが開く */
+function renderThirdOptions(){
+  return '<details class="help"><summary>'+ic('route',14)+
+    'やり方を見直すときの目安（どちらにも振り切らない）</summary><div class="in">'+
+    'やり方を変えるときによくあるのは、任せきりだった反省から細かく縛りすぎる方へ、'+
+    '取り決めを省いていた反省から相手を疑う方へ、いきなり振れてしまうことです。'+
+    '必要なのは正反対に振ることではなく、その間にある三つめの選び方です。'+
+    '<table class="tbl" style="margin-top:10px;"><thead><tr>'+
+    '<th>やめたい状態</th><th>行きすぎた反動</th><th>目指す進め方</th></tr></thead><tbody>'+
+    THIRD_OPTIONS.map(function(r){
+      return '<tr><td>'+esc(r.bad)+'</td><td class="muted">'+esc(r.wrong)+'</td>'+
+             '<td><b>'+esc(r.right)+'</b></td></tr>'; }).join('')+
+    '</tbody></table></div></details>';
+}
 
 function renderDecisionList(){
   var d = DB.data;
@@ -140,17 +150,14 @@ function renderDecisionList(){
   var body = tableHtml([
     { label:'件名', render:function(r){
         return '<b>'+esc(r.title)+'</b><div class="small muted">'+esc(decisionKind(r.kind).label)+'</div>'; } },
-    { label:'登録時の状態', width:'140px', render:function(r){
-        var em = emotionOf(r.emotion);
-        return badge(em.label, em.cls); } },
-    { label:'冷却期間', width:'150px', render:function(r){
-        if(r.stage==='decided') return '<span class="small">'+(r.heldOk?'守って確定':'<b style="color:#c8352b;">守らず確定</b>')+'</span>';
+    { label:'待ち時間', width:'150px', render:function(r){
+        if(r.stage==='decided') return '<span class="small">'+(r.heldOk?'手順どおり':'<b style="color:var(--bad-solid);">時間をおかず確定</b>')+'</span>';
         if(r.stage==='dropped') return '<span class="small muted">見送り</span>';
         return holdLabel(holdUntil(r, decisionKind(r.kind).hold))+
                '<div class="small muted">'+fmtJp(holdUntil(r, decisionKind(r.kind).hold))+'まで</div>'; } },
-    { label:'反対意見役', width:'120px', render:function(r){
-        return r.devilName ? esc(r.devilName)+(String(r.devilNote||'').trim()?'':'<div class="small" style="color:#c8352b;">意見が未記録</div>')
-                           : badge('未指名','bad'); } },
+    { label:'反対意見を言う人', width:'130px', render:function(r){
+        return r.devilName ? esc(r.devilName)+(String(r.devilNote||'').trim()?'':'<div class="small" style="color:var(--bad-solid);">意見が未記入</div>')
+                           : badge('未定','bad'); } },
     { label:'段階', width:'110px', render:function(r){
         var s = r.stage||'draft';
         var lb = DECISION_STAGES.filter(function(x){return x.key===s;})[0];
@@ -164,13 +171,15 @@ function renderDecisionList(){
         }
         return b + ' ' + btn('削除','decDel',{id:r.id},'danger'); } }
   ], rows, {
-    emptyTitle:'重大決裁の記録がありません',
-    emptyText:'人事・解約・大型支出・訴訟方針などを決める前に、まずここに登録してください。'
+    emptyTitle:'まだ記録がありません',
+    emptyText:'人の配置、契約の解除、大きな支出などを決める前に、まずここに登録してください。',
+    emptyIcon:'shield'
   });
 
-  return card('重大決裁', body, {
-    sub:'怒り・焦り・不信が強いときは、決定ではなく論点整理までにする',
-    tools: btn('決裁を登録する','decNew',{},'primary')+' '+btn('CSV','decCsv',{})
+  return card('重要な決定', body, {
+    icon:'shield',
+    sub:'急いで決めたくなっているときは、その日は論点の整理までにします',
+    tools: btn('決定を登録する','decNew',{},'primary','plus')+' '+btn('CSV','decCsv',{},'','download')
   });
 }
 
@@ -184,7 +193,7 @@ function renderVentureList(){
         return progressBar(f.rate, f.rate===100?'ok':f.rate>=60?'warn':'bad')+
           '<span class="small mono">'+f.done+'/'+f.total+'</span>'+
           (f.missing.length?'<div class="small muted">未記入：'+esc(f.missing.slice(0,3).join('、'))+'</div>':''); } },
-    { label:'48時間保留', width:'140px', render:function(r){
+    { label:'48時間の待ち', width:'140px', render:function(r){
         if(r.stage&&r.stage!=='draft') return '<span class="small muted">—</span>';
         return holdLabel(holdUntil(r, 48)); } },
     { label:'撤退条件', render:function(r){
@@ -199,40 +208,16 @@ function renderVentureList(){
         if((r.stage||'draft')==='draft') b += ' '+btn('審査する','venApprove',{id:r.id},'primary');
         return b + ' ' + btn('削除','venDel',{id:r.id},'danger'); } }
   ], rows, {
-    emptyTitle:'新規案件の企画書がありません',
-    emptyText:'思いついた案件は、まず1枚に書いて48時間置いてから判断します。'
+    emptyTitle:'まだ企画書がありません',
+    emptyText:'思いついた取り組みは、まず1枚に書いて48時間おいてから判断します。',
+    emptyIcon:'sparkle'
   });
 
-  return card('新規案件・新規事業', body, {
-    sub:'口頭決裁を禁止し、目的・期待利益・必要資源・失敗条件・撤退条件・責任者・資源上限を1枚に書く',
-    tools: btn('企画書を書く','venNew',{},'primary')
+  return card('新しい取り組み', body, {
+    icon:'sparkle',
+    sub:'口約束で始めず、目的・期待する成果・必要な資源・撤退の条件・責任者・上限を1枚に書きます',
+    tools: btn('企画書を書く','venNew',{},'primary','plus')
   });
-}
-
-function renderDecisionRule(){
-  var h = '';
-  h += card('なぜ「保留」が必要か',
-    '<div class="help-block">'+
-    '短期的な安心は、その場ではっきり感じられます。一方、長期的な代償は、数週間から数年後に'+
-    '離職・停滞・情報不足・機会損失として分散して現れます。<b>この時間差が、衝動的な判断を繰り返させます。</b></div>'+
-    '<table class="tbl"><thead><tr><th>行動</th><th>その瞬間に得られる安心</th><th>会社が後から払う代償</th></tr></thead><tbody>'+
-    [['激昂する','一瞬で主導権を取り戻せる','本音・報告・異論・挑戦が消え、問題が地下化する'],
-     ['状態を固定する','予測不能感が下がる','自律性、変化対応、改善提案が失われる'],
-     ['新規案件へ飛びつく','停滞感から抜け、期待と刺激を得られる','本業の地道な改善が止まり、人と資金が分散する'],
-     ['利益を非事業へ使う','すぐに達成感・所有感が得られる','組織能力への再投資が止まり、利益の複利が働かない'],
-     ['都合のよい性善説','契約・利害調整・監督の面倒を避けられる','想定外が起きた際の損失と裏切り感が大きくなる']]
-    .map(function(r){ return '<tr><td><b>'+esc(r[0])+'</b></td><td class="small">'+esc(r[1])+'</td><td class="small">'+esc(r[2])+'</td></tr>'; }).join('')+
-    '</tbody></table>', {sub:'構造分析レポート 第4章'});
-
-  h += card('振り切らず、第三の選択肢へ',
-    '<div class="help-block">改善するときによくある失敗は、放置の反省から<b>マイクロマネジメント</b>へ、'+
-    '性善説の反省から<b>全面的な不信</b>へ振り切ることです。必要なのは正反対ではなく、第三の選択肢です。</div>'+
-    '<table class="tbl"><thead><tr><th>いまの状態</th><th>誤った反動</th><th>健全な転換</th></tr></thead><tbody>'+
-    THIRD_OPTIONS.map(function(r){
-      return '<tr><td>'+esc(r.bad)+'</td><td class="small muted">'+esc(r.wrong)+'</td>'+
-             '<td class="small"><b>'+esc(r.right)+'</b></td></tr>'; }).join('')+
-    '</tbody></table>', {sub:'構造分析レポート 第10章'});
-  return h;
 }
 
 /* ---------- 操作 ---------- */
@@ -241,40 +226,37 @@ action('decTab', function(ds){ decTab = ds.t; render(); });
 var DECISION_FORM = function(v){
   return [
     { key:'title', label:'決めようとしていること', required:true, full:true,
-      placeholder:'例：営業部のAさんを異動させる／B社との取引を打ち切る' },
+      placeholder:'例：営業部の担当を入れ替える／B社との取引を見直す' },
     { key:'kind', label:'種別', type:'select', options:DECISION_KINDS.map(function(k){return {value:k.key,label:k.label};}) },
     { key:'raisedAt', label:'この件が持ち上がった日時', type:'datetime',
       hint:'ここから24時間は確定できません。' },
-    { key:'emotion', label:'いまの自分の状態', type:'select',
-      options:EMOTION_LEVELS.map(function(e){return {value:e.v,label:e.label};}),
-      hint:'正直に選んでください。「強い怒り・焦り・不信がある」を選ぶと、落ち着くまで確定できません。' },
-    { key:'facts', label:'事実（推測と分けて書く）', type:'textarea', rows:3, full:true,
-      hint:'いつ・何が・どこで起きたか。解釈や人物評は入れない。' },
-    { key:'lossNow', label:'今すぐ決めない損失', type:'textarea', rows:2,
-      hint:'待つことで失うものを、金額・日数で書く。' },
-    { key:'lossWait', label:'衝動的に決める損失', type:'textarea', rows:2,
-      hint:'間違えた場合に失うものを、金額・人・信用で書く。' },
-    { key:'devilName', label:'反対意見を言う役割（1名）',
-      hint:'この人には「反対する」ことが仕事だと伝える。' },
+    { key:'facts', label:'分かっている事実（推測とは分けて書く）', type:'textarea', rows:3, full:true,
+      hint:'いつ・どこで・何が起きたか。解釈や人物の評価は入れません。' },
+    { key:'lossNow', label:'いま決めないことで失うもの', type:'textarea', rows:2,
+      hint:'待つことで失うものを、金額や日数で書きます。' },
+    { key:'lossWait', label:'急いで決めて外したときに失うもの', type:'textarea', rows:2,
+      hint:'判断を誤った場合に失うものを、金額・人・信用で書きます。' },
+    { key:'devilName', label:'反対の立場から意見を言う人（1名）',
+      hint:'その人には「反対の見方を出すのが役割」だと先に伝えます。' },
     { key:'devilNote', label:'その人が挙げた反対意見', type:'textarea', rows:2,
-      hint:'反論が出ない決裁は、賛成されたのではなく、言えなかっただけかもしれません。' },
-    { key:'options', label:'選択肢（2つ以上）', type:'textarea', rows:3, full:true,
-      hint:'「やる／やらない」だけでなく、条件付き・小さく試す・期限付きの案も書く。' }
+      hint:'反論が出ない決定は、納得されたのではなく、言いにくかっただけかもしれません。' },
+    { key:'options', label:'考えられる案（2つ以上）', type:'textarea', rows:3, full:true,
+      hint:'「やる／やらない」だけでなく、条件つき・小さく試す・期限つきの案も書きます。' }
   ];
 };
 
 action('decNew', function(){
   openForm({
-    title:'重大決裁を登録する', wide:true,
-    intro:'<b>怒り・強い焦り・強い不信がある状態では、人事・解約・大型支出・訴訟方針などを確定しません。</b>'+
-          'ここに登録すると24時間の冷却期間が始まります。その間は論点整理だけを進めます。',
+    title:'重要な決定を登録する', wide:true,
+    intro:'<b>人の配置、契約の解除、大きな支出などは、その場では確定しません。</b>'+
+          'ここに登録すると24時間の待ち時間が始まります。その間に、事実の確認と論点の整理を進めます。',
     fields:DECISION_FORM(),
-    value:{ kind:'people', raisedAt:fmtDateTimeLocal(new Date()), emotion:0 },
+    value:{ kind:'people', raisedAt:fmtDateTimeLocal(new Date()) },
     onSubmit:function(v){
       v.id = uid('dec'); v.createdAt = nowIso(); v.stage = 'holding'; v.cooled = false;
       if(v.raisedAt) v.raisedAt = new Date(v.raisedAt).toISOString();
       DB.data.decisions.push(v); DB.save(); render();
-      toast('登録しました。24時間の冷却期間に入ります。','ok');
+      toast('登録しました。24時間おいてから確定できます。','ok');
     }
   });
 });
@@ -284,17 +266,17 @@ action('decEdit', function(ds){
   var chk = decisionCanDecide(rec);
   var extra = '<div class="help-block" style="margin-bottom:10px;">'+
     (rec.stage==='decided'
-      ? '<b>確定済み：</b>'+esc(fmtJp(rec.decidedAt))+(rec.heldOk?'（ルールを守って確定）':'（<b style="color:#c8352b;">冷却期間を守らずに確定</b>）')
-      : (chk.ok ? '<b>確定できます。</b>冷却期間と反対意見の確認が済んでいます。'
+      ? '<b>確定済み：</b>'+esc(fmtJp(rec.decidedAt))+(rec.heldOk?'（手順どおりに確定）':'（<b style="color:var(--bad-solid);">待ち時間をおかずに確定</b>）')
+      : (chk.ok ? '<b>確定できます。</b>待ち時間が過ぎ、反対意見の確認も済んでいます。'
                 : '<b>まだ確定できません。</b><ul style="margin:6px 0 0 18px;">'+
                   chk.reasons.map(function(r){return '<li>'+esc(r)+'</li>';}).join('')+'</ul>'))+
     '</div>';
   openForm({
-    title:'重大決裁', wide:true, intro:extra,
+    title:'重要な決定', wide:true, intro:extra,
     fields:DECISION_FORM().concat([
       { type:'heading', label:'確定するときに記入する' },
-      { key:'cooled', type:'checkbox', label:'落ち着いた状態で見直した', full:true,
-        checkLabel:'時間を置いて、落ち着いた状態でもう一度この件を見直した' },
+      { key:'cooled', type:'checkbox', label:'時間をおいて見直した', full:true,
+        checkLabel:'時間をおいてから、もう一度この件を見直した' },
       { key:'decision', label:'決めた内容', type:'textarea', rows:2, full:true },
       { key:'reason', label:'そう決めた理由（記録に残す）', type:'textarea', rows:2, full:true },
       { key:'review', label:'この判断を見直す日', type:'date' }
@@ -315,18 +297,18 @@ action('decDecide', function(ds){
   if(!chk.ok){
     openModal({
       title:'まだ確定できません',
-      body:'<div class="alert bad"><span class="ic">!</span><div><div class="t">防波堤が働いています</div>'+
+      body:'<div class="alert bad"><span class="ic">'+ic('alert',15)+'</span><div class="body"><div class="t">まだ確定できない項目があります</div>'+
            '<div class="d">'+chk.reasons.map(function(r){return esc(r);}).join('<br>')+'</div></div></div>'+
            '<div class="help-block" style="margin-top:12px;">'+
-           'いま確定したくなる気持ちそのものが、この仕組みが止めようとしているものです。'+
-           '「今すぐ決めない損失」と「衝動的に決める損失」を両方書き出し、反対意見を1人から聞いてから、もう一度開いてください。</div>',
+           'この手順は、判断を止めるためではなく、後から戻せない決定をゆっくり進めるためのものです。'+
+           '失うものを両方書き出し、反対の見方を1人から聞いてから、もう一度開いてください。</div>',
       foot:'<button class="btn" data-modal-close>閉じる</button>'+
-           '<button class="btn danger" data-act="decForce" data-id="'+esc(rec.id)+'">ルールを破って確定する（記録に残ります）</button>'
+           '<button class="btn danger" data-act="decForce" data-id="'+esc(rec.id)+'">手順を飛ばして確定する（記録に残ります）</button>'
     });
     return;
   }
-  confirmDialog('決裁を確定する',
-    '件名：'+rec.title+'\n\n冷却期間と反対意見の確認は完了しています。確定して記録に残しますか？',
+  confirmDialog('この決定を確定する',
+    '件名：'+rec.title+'\n\n待ち時間が過ぎ、反対意見の確認も済んでいます。確定して記録に残しますか？',
     function(){
       rec.stage='decided'; rec.decidedAt=nowIso(); rec.heldOk=true;
       DB.save(); render(); toast('確定しました','ok');
@@ -336,12 +318,12 @@ action('decDecide', function(ds){
 action('decForce', function(ds){
   var rec = byId(DB.data.decisions, ds.id); if(!rec) return;
   closeModal();
-  confirmDialog('ルールを破って確定します',
-    'この確定は「冷却期間を守らずに確定した決裁」として記録され、健全度診断の数値に反映されます。\n\n'+
-    '緊急でどうしても必要な場合だけにしてください。',
+  confirmDialog('手順を飛ばして確定します',
+    'この確定は「待ち時間をおかずに確定した決定」として記録に残り、組織の健康診断の数値にも反映されます。\n\n'+
+    '急を要する場合だけにしてください。',
     function(){
       rec.stage='decided'; rec.decidedAt=nowIso(); rec.heldOk=false;
-      DB.save(); render(); toast('記録しました（ルール外の確定）','bad');
+      DB.save(); render(); toast('記録しました（手順を飛ばした確定）','bad');
     }, 'それでも確定する');
 });
 
@@ -352,7 +334,7 @@ action('decDrop', function(ds){
 });
 
 action('decDel', function(ds){
-  confirmDialog('削除', 'この決裁の記録を削除します。よろしいですか？', function(){
+  confirmDialog('削除', 'この決定の記録を削除します。よろしいですか？', function(){
     DB.data.decisions = DB.data.decisions.filter(function(x){ return x.id!==ds.id; });
     DB.save(); render(); toast('削除しました','ok');
   }, '削除する');
@@ -442,11 +424,11 @@ action('venSet', function(ds){
 });
 
 action('decCsv', function(){
-  var rows = [['種別','件名','分類','持ち上がった日時','登録時の状態','冷却期間の遵守','段階',
-               '反対意見役','反対意見','今すぐ決めない損失','衝動的に決める損失','決めた内容','理由','見直し日']];
+  var rows = [['種別','件名','分類','持ち上がった日時','待ち時間を守ったか','段階',
+               '反対意見を言う人','反対意見','いま決めないと失うもの','急いで決めて外すと失うもの','決めた内容','理由','見直し日']];
   sortBy(DB.data.decisions, function(x){ return x.raisedAt||x.createdAt; }).forEach(function(r){
-    rows.push(['重大決裁', r.title, decisionKind(r.kind).label, fmtJp(r.raisedAt), emotionOf(r.emotion).label,
-      r.stage==='decided' ? (r.heldOk?'守って確定':'守らず確定') : '',
+    rows.push(['重要な決定', r.title, decisionKind(r.kind).label, fmtJp(r.raisedAt),
+      r.stage==='decided' ? (r.heldOk?'手順どおり':'時間をおかず確定') : '',
       (DECISION_STAGES.filter(function(x){return x.key===(r.stage||'draft');})[0]||{}).label,
       r.devilName, r.devilNote, r.lossNow, r.lossWait, r.decision, r.reason, r.review]);
   });
@@ -455,7 +437,7 @@ action('decCsv', function(){
     vrows.push([r.title, fmtJp(r.raisedAt), ventureFill(r).rate+'%', r.purpose, r.gain, r.resource,
       r.failCond, r.exitCond, r.ownerName, r.cap, r.stage||'draft', r.reviewNote, r.result]);
   });
-  downloadCsv('重大決裁_'+todayStr()+'.csv', rows);
+  downloadCsv('重要な決定_'+todayStr()+'.csv', rows);
   setTimeout(function(){ downloadCsv('新規案件の企画書_'+todayStr()+'.csv', vrows); }, 300);
   toast('CSVを書き出しました','ok');
 });

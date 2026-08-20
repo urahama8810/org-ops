@@ -1,5 +1,5 @@
 /* ============================================================
-   07-scorecards.js  職種別役割スコアカード（指示書 第6章／シート3）
+   07-scorecards.js  職種別役割スコアカード
    ============================================================ */
 
 var SCORECARD_FIELDS = [
@@ -12,9 +12,9 @@ var SCORECARD_FIELDS = [
   { key:'kpis', label:'KPI（最大5項目）', type:'list', rows:5, full:true,
     hint:'1行に1つ。測れないものはKPIにしない。' },
   { key:'authority', label:'権限（本人判断可能な範囲）', type:'textarea', rows:3, full:true },
-  { key:'approvals', label:'要承認（上司・社長承認が必要な事項）', type:'textarea', rows:3, full:true },
+  { key:'approvals', label:'承認が必要なこと（上司または経営層）', type:'textarea', rows:3, full:true },
   { key:'reports', label:'必須報告（何を・誰へ・いつまでに）', type:'textarea', rows:3, full:true,
-    hint:'指示書 第8章の期限（悪い情報は24時間以内など）と揃える。' },
+    hint:'期限（悪い情報は24時間以内など）と揃える。' },
   { key:'behaviors', label:'求める行動', type:'textarea', rows:2, full:true,
     hint:'期限、報告、改善、記録、協働。' },
   { key:'gradeDiff', label:'上位等級との差', type:'textarea', rows:2, full:true,
@@ -32,7 +32,7 @@ VIEWS.scorecards = {
       '担当者が代わっても会社の期待が変わらない状態にするためです。まず6〜8区分に分類し、それぞれ8項目を埋めてください。</div>';
 
     if(d.scorecards.length < 6)
-      h += '<div class="alert warn"><span class="ic">▲</span><div><div class="t">現在'+d.scorecards.length+'職種です（目安は6〜8職種）</div>'+
+      h += '<div class="alert warn"><span class="ic">'+ic('info',15)+'</span><div class="body"><div class="t">現在'+d.scorecards.length+'職種です（目安は6〜8職種）</div>'+
         '<div class="d">標準ひな形から一括作成できます。作成後、自社の実態に合わせて必ず修正してください。</div></div>'+
         '<div class="go"><button class="btn sm primary" data-act="scCreateDefaults">標準8職種を作成</button></div></div>';
 
@@ -45,7 +45,7 @@ VIEWS.scorecards = {
 
     if(!d.scorecards.length){
       h += card('職種一覧','<div class="empty"><div class="big">まだ職種が登録されていません</div>'+
-        '<div>「標準8職種を作成」で指示書のひな形から始めるのが最短です。</div>'+
+        '<div>「標準8職種を作成」で標準のひな形から始めるのが最短です。</div>'+
         '<div class="btn-row" style="justify-content:center;margin-top:10px;">'+
         '<button class="btn primary" data-act="scCreateDefaults">標準8職種を作成</button>'+
         '<button class="btn" data-act="scNew">自分で追加する</button></div></div>',{tight:true});
@@ -86,7 +86,8 @@ VIEWS.scorecards = {
 
 action('scNew', function(){
   openForm({ title:'職種を追加', wide:true, fields:SCORECARD_FIELDS, value:{},
-    intro:'8項目すべてを埋めてください。特に<b>「権限」と「要承認」の線引き</b>、<b>「上位等級との差」</b>が、社長への判断の逆流を止める鍵になります。',
+    intro:'8項目すべてを埋めてください。とくに<b>「決めてよいこと」と「承認が必要なこと」の線引き</b>、'+
+          'そして<b>「一つ上の等級との違い」</b>がはっきりしていると、細かい判断まで上に戻らずに済みます。',
     onSubmit:function(v){
       v.id = uid('sc');
       DB.data.scorecards.push(v); DB.save(); render(); toast('追加しました','ok');
@@ -116,7 +117,7 @@ action('scDel', function(ds){
 
 action('scCreateDefaults', function(){
   confirmDialog('標準8職種の作成',
-    '指示書のひな形から8職種（事業責任者・営業・マーケティング・顧客対応・開発・経理総務・管理職・経営幹部）の役割スコアカードを作成します。\n\n'+
+    '標準のひな形から8職種（事業責任者・営業・マーケティング・顧客対応・開発・経理総務・管理職・経営幹部）の役割スコアカードを作成します。\n\n'+
     '既に同じ職種名がある場合は追加しません。作成後、必ず自社の実態に合わせて修正してください。',
     function(){
       var existing = DB.data.scorecards.map(function(s){ return s.jobType; });

@@ -1,12 +1,11 @@
 /* ============================================================
-   19-diagnosis.js  経営の健全度診断
+   19-diagnosis.js  組織の健康診断
    ------------------------------------------------------------
-   企業成長を阻害する「負のシステム」構造分析レポート（2026年8月）を
-   実データで測るための画面。
-     ・90日で追うべき先行指標（表7）
-     ・5つの強化ループ（R1〜R5）のリスク判定
-     ・読み込み時の検証質問（第13章）
-   売上ではなく「正の循環が始まった証拠」を追う。
+   売上は結果なので、変化が数字に出るまでに時間がかかる。
+   その手前で動く6つの数字を、日々の記録から自動で計算して見る画面。
+     ・売上より先に動く6つの数字
+     ・組織が陥りやすい5つの悪循環の、いまの度合い
+     ・半年に一度の振り返り質問
    ============================================================ */
 
 /* 0〜100 に丸めるヘルパー */
@@ -70,7 +69,7 @@ function leadingMetrics(){
   /* 育成 */
   var ds = delegationStats();
   out.growth = { score:_avg([ds.checkRate, ds.fullRate]),
-    value: ds.checkRate===null ? '委任カードなし' : '中間確認 '+ds.checkRate+'%',
+    value: ds.checkRate===null ? '記録なし' : '中間確認 '+ds.checkRate+'%',
     note: ds.total ? '委任'+ds.total+'件／6項目記入 '+(ds.fullRate===null?'—':ds.fullRate+'%')+'／再挑戦 '+ds.retry+'件'
                    : '任せた仕事をカードにすると測れます' };
 
@@ -78,10 +77,9 @@ function leadingMetrics(){
   var oo = oneOnOneRate();
   var emps = d.employees.filter(function(e){ return !e.isTop; });
   var nextRole = emps.length ? Math.round(emps.filter(function(e){ return String(e.nextRole||'').trim(); }).length/emps.length*100) : null;
-  var risky = emps.filter(function(e){ return e.retentionRisk==='高い'; }).length;
   out.retain = { score:_avg([oo.total?oo.rate:null, nextRole]),
     value: oo.total ? '1on1実施 '+oo.rate+'%' : '対象者なし',
-    note: (nextRole===null?'':'将来像の提示 '+nextRole+'%')+(risky?'／離職リスク高 '+risky+'名':'') };
+    note: (nextRole===null?'':'これからの役割を伝えられている人 '+nextRole+'%') };
 
   /* 営業 */
   var sl = salesLeadingUse();
@@ -102,7 +100,7 @@ function leadingMetrics(){
   var dec = decisionStats();
   out.decision = { score:_avg([dec.holdRate, dec.sheetRate, dec.exitRate]),
     value: dec.total||dec.ventures ? '決裁'+dec.total+'件／企画書'+dec.ventures+'件' : '記録なし',
-    note: (dec.holdRate===null?'':'冷却期間の遵守 '+dec.holdRate+'%')+
+    note: (dec.holdRate===null?'':'手順どおりに確定 '+dec.holdRate+'%')+
           (dec.exitRate===null?'':'／撤退条件 '+dec.exitRate+'%') };
 
   return out;
@@ -130,14 +128,12 @@ function loopScores(){
   var comp = d.goals.filter(function(g){ return g.level==='company'; });
   var visionScore = comp.length ? clamp(Math.round(comp.length/3*100),0,100) : 0;
   var grade = emps.length ? Math.round(emps.filter(function(e){ return !!e.grade; }).length/emps.length*100) : null;
-  var risky = emps.filter(function(e){ return e.retentionRisk==='高い'; }).length;
   out.R2 = { score:_avg([nextRole, visionScore, grade, oo.total?oo.rate:null]),
     facts:[
-      { label:'将来の役割・権限を提示できている社員', v:nextRole===null?'—':nextRole+'%' },
-      { label:'等級の格付けが済んだ社員', v:grade===null?'—':grade+'%' },
-      { label:'会社目標（方向性）の設定', v:comp.length+'個' },
-      { label:'離職リスクが高いと見ている社員', v:risky+'名' },
-      { label:'社長だけが仕事内容を把握している社員', v:d.employees.filter(function(e){return e.ceoOnlyKnows;}).length+'名' }
+      { label:'これからの役割を伝えられている人', v:nextRole===null?'—':nextRole+'%' },
+      { label:'等級が決まっている人', v:grade===null?'—':grade+'%' },
+      { label:'会社目標（進む方向）の数', v:comp.length+'個' },
+      { label:'中身を知っているのが1人だけの仕事', v:d.employees.filter(function(e){return e.ceoOnlyKnows;}).length+'件' }
     ]};
 
   /* R3 営業・再投資回避 */
@@ -222,8 +218,8 @@ function positiveCycleScore(){
 var diagTab = 'indicator';
 
 VIEWS.diagnosis = {
-  title:'経営の健全度診断',
-  desc:'売上ではなく「正の循環が始まった証拠」を測ります。',
+  title:'組織の健康診断',
+  desc:'売上の手前にある数字を見て、良い流れが始まっているかを確かめます。',
   render:function(){
     var h = '';
     var total = positiveCycleScore();
@@ -231,42 +227,42 @@ VIEWS.diagnosis = {
     var q = diagnosisSummary();
 
     h += '<div class="notice">'+
-      '<b>ここに出る数字は、あなたを採点するためのものではありません。</b>'+
-      '会社が「経営者のその場の不安・面倒・不快感を早く下げる方向」ではなく、'+
-      '「長期的に強くなる方向」へ動いているかを、記録から確かめるためのものです。'+
-      'システムとして形成された問題は、システムとして作り替えられます。'+
+      '<b>ここに出る数字は、誰かを採点するためのものではありません。</b>'+
+      '会社が「目の前の困りごとをその場でしのぐ方向」ではなく、'+
+      '「時間をかけて強くなる方向」へ動いているかどうかを、日々の記録から確かめるためのものです。'+
+      '仕組みでできた状態は、仕組みで変えられます。'+
       '</div>';
 
     h += '<div class="grid c4" style="margin-bottom:16px;">'+
-      tile('正の循環スコア', total===null?'—':total+'<small>%</small>',
-           progressBar(total||0, scoreCls(total)), scoreCls(total))+
-      tile('先行指標（記録から）', _avg(LEADING_INDICATORS.map(function(x){return m[x.key].score;}))===null?'—':
+      tile('良い流れの度合い', total===null?'—':total+'<small>%</small>',
+           progressBar(total||0, scoreCls(total)), scoreCls(total), 'pulse')+
+      tile('6つの数字（記録から）', _avg(LEADING_INDICATORS.map(function(x){return m[x.key].score;}))===null?'—':
            _avg(LEADING_INDICATORS.map(function(x){return m[x.key].score;}))+'<small>%</small>',
            '6領域の平均', scoreCls(_avg(LEADING_INDICATORS.map(function(x){return m[x.key].score;}))))+
-      tile('検証質問（自己確認）', q.rate===null?'—':q.rate+'<small>%</small>',
+      tile('振り返り質問', q.rate===null?'—':q.rate+'<small>%</small>',
            q.answered+' / '+q.total+'問に回答', scoreCls(q.rate))+
-      tile('上流3指標の警告', q.upstreamNo.length+'<small>件</small>',
-           '他の項目へ波及する項目', q.upstreamNo.length?'bad':'ok')+
+      tile('先に手を打ちたい項目', q.upstreamNo.length+'<small>件</small>',
+           '他の項目にも影響が広がりやすいもの', q.upstreamNo.length?'bad':'ok', 'alert')+
       '</div>';
 
     h += '<div class="tabs">'+
-      '<div class="tab '+(diagTab==='indicator'?'active':'')+'" data-act="diagTab" data-t="indicator">先行指標</div>'+
-      '<div class="tab '+(diagTab==='loop'?'active':'')+'" data-act="diagTab" data-t="loop">5つの強化ループ</div>'+
-      '<div class="tab '+(diagTab==='check'?'active':'')+'" data-act="diagTab" data-t="check">検証質問（'+q.answered+'/'+q.total+'）</div>'+
-      '<div class="tab '+(diagTab==='structure'?'active':'')+'" data-act="diagTab" data-t="structure">負のシステムとは</div>'+
+      '<button type="button" class="tab '+(diagTab==='indicator'?'active':'')+'" data-act="diagTab" data-t="indicator">6つの数字</button>'+
+      '<button type="button" class="tab '+(diagTab==='loop'?'active':'')+'" data-act="diagTab" data-t="loop">陥りやすい5つの悪循環</button>'+
+      '<button type="button" class="tab '+(diagTab==='check'?'active':'')+'" data-act="diagTab" data-t="check">振り返り質問（'+q.answered+'/'+q.total+'）</button>'+
       '</div>';
 
-    if(diagTab==='indicator')      h += renderLeading(m);
-    else if(diagTab==='loop')      h += renderLoops();
-    else if(diagTab==='check')     h += renderDiagChecks();
-    else                           h += renderStructure();
+    if(diagTab==='loop')        h += renderLoops();
+    else if(diagTab==='check')  h += renderDiagChecks();
+    else                        h += renderLeading(m);
     return h;
   }
 };
+VIEWS.diagnosis.setTab = function(t){ diagTab = t; };   /* 他の画面からタブを指定できるようにする */
+
 
 function renderLeading(m){
   var h = '';
-  h += card('90日で追うべき先行指標',
+  h += card('売上より先に動く6つの数字',
     tableHtml([
       { label:'領域', width:'110px', render:function(r){ return '<b>'+esc(r.label)+'</b>'; } },
       { label:'見る数字', render:function(r){ return '<span class="small">'+esc(r.metric)+'</span>'; } },
@@ -280,27 +276,27 @@ function renderLeading(m){
       { label:'改善の兆候', render:function(r){ return '<span class="small">'+esc(r.good)+'</span>'; } },
       { label:'', cls:'actions', width:'80px', render:function(r){ return btn('開く','go',{view:r.view}); } }
     ], LEADING_INDICATORS, {}),
-    { sub:'構造分析レポート 表7', tight:true });
+    { icon:'pulse', tight:true });
 
-  h += card('この3つが、他のすべてに波及します',
+  h += card('この3つは、ほかの項目にも影響が広がります',
     '<div class="grid c3">'+
-    [['悪い情報が早く上がるか','報告・承認ルール','reports'],
-     ['任せる際に中間確認があるか','委任カード','delegation'],
-     ['感情と重大決裁が分離されているか','意思決定の防波堤','decisions']]
+    [['よくない情報が早く届くか','報告・承認ルール','reports'],
+     ['任せるときに確認日を決めているか','仕事の任せ方','delegation'],
+     ['大きな決定を手順どおりに進めているか','重要な決定','decisions']]
     .map(function(x){
-      return '<div class="tile accent"><div class="label">上流指標</div>'+
+      return '<div class="tile accent"><div class="label">先に効く項目</div>'+
         '<div class="headline">'+esc(x[0])+'</div>'+
         '<div class="foot"><button class="btn sm" data-act="go" data-view="'+x[2]+'">'+esc(x[1])+'を開く</button></div></div>';
     }).join('')+'</div>',
-    { sub:'構造分析レポート 第13章' });
+    { icon:'sparkle' });
   return h;
 }
 
 function renderLoops(){
   var sc = loopScores(), h = '';
   h += '<div class="help-block">'+
-    '<b>強化ループとは、結果が次の原因を強め、回るほど大きくなる循環のことです。</b>'+
-    '一つひとつを性格の問題として直そうとしても続きません。'+
+    '<b>悪循環とは、結果が次の原因になって、回るほど大きくなっていく流れのことです。</b>'+
+    '一つひとつを人の性格の問題として直そうとしても、なかなか続きません。'+
     'ループのどこか1か所を仕組みで止めると、その先が連鎖的に弱まります。'+
     '</div>';
 
@@ -309,7 +305,7 @@ function renderLoops(){
     var facts = (sc[lp.id]||{}).facts || [];
     var body =
       '<div class="alert '+(s===null?'':(s>=75?'ok':s>=50?'warn':'bad'))+'">'+
-        '<span class="ic">'+(s===null?'—':(s>=75?'✓':'!'))+'</span>'+
+        '<span class="ic">'+(s===null?'<span class="muted">—</span>':ic(s>=75?'check':'alert',15))+'</span>'+
         '<div style="flex:1;"><div class="t">'+(s===null?'まだ記録が足りません':'防止スコア '+s+'%')+'</div>'+
         '<div class="d">'+esc(lp.chain)+'</div></div></div>'+
       '<div class="grid c2" style="margin-top:10px;">'+
@@ -334,8 +330,8 @@ function renderDiagChecks(){
   var a = diagnosisAnswers(), h = '';
   h += '<div class="help-block">'+
     '<b>チェックが付かない項目を、一度に全部改善する必要はありません。</b>'+
-    '特に「悪い情報が早く上がるか」「任せる際に中間確認があるか」「感情と重大決裁が分離されているか」の3点は、'+
-    '他の項目へ波及する上流指標です。ここから先に手を付けてください。'+
+    'とくに「よくない情報が早く届くか」「任せるときに確認日を決めているか」「大きな決定を手順どおりに進めているか」の3つは、'+
+    'ほかの項目にも影響が広がります。ここから先に手を付けると、全体が動きやすくなります。'+
     '</div>';
 
   DIAGNOSIS_SECTIONS.forEach(function(s){
@@ -373,67 +369,6 @@ function renderDiagChecks(){
   return h;
 }
 
-function renderStructure(){
-  var h = '';
-  h += card('この会社に起きている可能性のある循環',
-    '<div class="help-block" style="font-size:13.5px;">'+
-    '<b>不確実性への弱さ</b> → 管理・育成・営業・対話の回避 → 経営システムの欠落 → '+
-    '人材未成熟・情報隠蔽・優秀者流出 → 成果悪化・想定外 → 激昂・責任転嫁・過剰統制 → '+
-    'さらに管理・育成・対話が難しくなる'+
-    '</div>'+
-    '<div class="grid c2">'+
-    [['① 根本の心理・判断傾向',
-      'わからない状態への耐性が弱い／成果を急ぐ／面倒・苦手・拒絶される行為を避ける／'+
-      '信頼・文化・育成など目に見えない資産を軽視する／人を独立した主体より管理対象として見やすい'],
-     ['② 短期的な安心を得る行動',
-      'ビジョンや高い基準を明示しない／育成・管理・営業・対話を後回しにする／任せっぱなし／'+
-      '失敗時に激昂・嫌味／衝動的に新規案件へ飛びつく／状態を固定して統制しようとする'],
-     ['③ 経営システムの欠落',
-      '目的・優先順位・判断基準が曖昧／役割・権限・責任・評価が曖昧／育成と中間確認が仕組み化されない／'+
-      '営業が再現可能な型にならない／資本配分・契約・監督の規律が弱い'],
-     ['④ 従業員・取引先の合理的な反応',
-      '失敗を避け、指示待ち・自己防衛になる／質問・報告・異論・挑戦が減る／表面上は従うが本音を隠す／'+
-      '選択肢のある有能人材ほど離れやすい'],
-     ['⑤ 経営上の結果',
-      '低い基準が社内の標準になる／同じ失敗が繰り返される／営業パイプラインが弱い／'+
-      '経営者がボトルネックになる／再投資不足で機会損失／優秀者流出と組織能力低下'],
-     ['⑥ 経営者側の誤った学習',
-      '「人は育たない」「任せると失敗する」「自分が細かく管理するしかない」「育成や対話は時間の無駄」'+
-      '「次の新しい案件に賭けた方が早い」という信念が強化される']]
-    .map(function(x){
-      return '<div class="card"><div class="card-body">'+
-        '<div style="font-weight:700;color:#0f4c81;margin-bottom:6px;">'+esc(x[0])+'</div>'+
-        '<div class="small" style="line-height:1.8;">'+esc(x[1])+'</div></div></div>';
-    }).join('')+
-    '</div>'+
-    '<div class="alert bad" style="margin-top:14px;"><span class="ic">!</span><div>'+
-    '<div class="t">核心：「管理」は避けるが、「支配」は強める</div>'+
-    '<div class="d">平時は基準を示さず任せっぱなしにし、問題が見えた瞬間だけ強く介入する。'+
-    'そのため、問題の予防も人材育成も起きず、次の問題はさらに見えにくくなります。</div></div></div>',
-    { sub:'構造分析レポート 第3章' });
-
-  h += card('反転後の正の循環',
-    '<div class="help-block" style="font-size:13.5px;">'+
-    '不確実性を言語化する → 基準・役割・期限を明示する → 中間確認と育成を行う → '+
-    '質問・報告・挑戦が増える → 成果と組織能力が上がる → 利益を再投資する → より高い基準と自律が可能になる'+
-    '</div>'+
-    '<div class="grid c2">'+
-    [['自分がすべてを解く人から','問題が早く見える仕組みを作る人へ'],
-     ['人を動かす人から','人が自分で成果を出せる条件を作る人へ'],
-     ['利益を使う人から','利益を組織能力へ変換する人へ'],
-     ['信頼か不信かで判断する人から','信頼と規律を両立させる人へ'],
-     ['即断する人から','即断すべき領域と待つべき領域を分ける人へ']]
-    .map(function(x){
-      return '<div class="alert ok"><span class="ic">→</span><div><div class="d">'+esc(x[0])+'</div>'+
-             '<div class="t">'+esc(x[1])+'</div></div></div>'; }).join('')+
-    '</div>'+
-    '<div class="notice" style="margin:14px 0 0;">'+
-    'この転換が始まると、<b>経営者が頑張るほど会社が依存する状態</b>から、'+
-    '<b>会社が強くなるほど経営者の自由度も高まる状態</b>へ移行できます。</div>',
-    { sub:'構造分析レポート 第10章・第14章' });
-  return h;
-}
-
 /* ---------- 操作 ---------- */
 action('diagTab', function(ds){ diagTab = ds.t; render(); });
 
@@ -456,7 +391,7 @@ action('diagReset', function(){
 action('diagSnapshot', function(){
   openForm({
     title:'今日の結果を記録に残す',
-    intro:'診断結果を日付付きで残します。90日後に見返すと、正の循環が始まったかどうかが分かります。',
+    intro:'今日の結果を日付つきで残します。数か月後に見返すと、流れが変わったかどうかが分かります。',
     fields:[{ key:'note', label:'メモ', type:'textarea', rows:3, full:true,
               placeholder:'例：中間確認を始めた。報告が早くなったが、再投資はまだできていない。' }],
     value:{},

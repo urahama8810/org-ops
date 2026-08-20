@@ -6,7 +6,7 @@ var repTab = 'rules';
 
 VIEWS.reports = {
   title:'報告・承認ルール',
-  desc:'悪い情報ほど早く上げる仕組みをつくります。報告が遅れる組織は、社長が全部見るしかなくなります。',
+  desc:'よくない情報ほど早く共有する仕組みをつくります。早く分かるほど、打てる手が多く残ります。',
   render:function(){
     var h = '';
     var tabs = [
@@ -16,13 +16,13 @@ VIEWS.reports = {
       {key:'incidents',  label:'問題処理記録'},
       {key:'exceptions', label:'例外の記録'}
     ];
-    h += '<div class="tabs">'+tabs.map(function(t){
+    h += '<div class="tabs" role="tablist">'+tabs.map(function(t){
       var n = '';
       if(t.key==='log') n = ' ('+DB.data.reports.filter(function(r){return !r.needApproval;}).length+')';
       if(t.key==='approval') n = ' ('+DB.data.reports.filter(function(r){return r.needApproval;}).length+')';
       if(t.key==='incidents') n = ' ('+DB.data.incidents.length+')';
       if(t.key==='exceptions') n = ' ('+DB.data.exceptions.length+')';
-      return '<div class="tab '+(repTab===t.key?'active':'')+'" data-act="repTab" data-t="'+t.key+'">'+esc(t.label)+n+'</div>';
+      return '<button type="button" class="tab '+(repTab===t.key?'active':'')+'" data-act="repTab" data-t="'+t.key+'">'+esc(t.label)+n+'</button>';
     }).join('')+'</div>';
 
     if(repTab === 'rules')      h += renderRules();
@@ -33,6 +33,8 @@ VIEWS.reports = {
     return h;
   }
 };
+VIEWS.reports.setTab = function(t){ repTab = t; };   /* 他の画面からタブを指定できるようにする */
+
 action('repTab', function(ds){ repTab = ds.t; render(); });
 
 /* ---------- ルール一覧 ---------- */
@@ -48,7 +50,7 @@ function renderRules(){
     {label:'内容', render:function(r){ return esc(r.detail); }},
     {label:'', cls:'actions', width:'110px', render:function(r){
       return btn('この報告を登録','repNew',{rule:r.key},'primary'); }}
-  ], REPORT_RULES, {}), {tight:true, sub:'指示書 第8章'});
+  ], REPORT_RULES, {}), {tight:true});
 
   /* 承認基準 */
   h += card('承認の基準', '<dl class="kv">'+
@@ -230,7 +232,7 @@ action('repCsv', function(){
 function renderIncidents(){
   var d = DB.data;
   var h = '<div class="help-block">'+
-    '<b>問題が起きたときの処理順（指示書 第14章）：</b> '+INCIDENT_STEPS.map(function(s){ return s.label; }).join(' → ')+'。<br>'+
+    '<b>問題が起きたときの処理順：</b> '+INCIDENT_STEPS.map(function(s){ return s.label; }).join(' → ')+'。<br>'+
     'この順番を守ると、犯人探しではなく仕組みの修正になります。感情で処理すると同じ問題が繰り返します。</div>';
 
   h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
@@ -307,7 +309,7 @@ action('incPrint', function(){
 function renderExceptions(){
   var d = DB.data;
   var h = '<div class="help-block">'+
-    '<b>例外を認める場合は、必ず記録します（指示書 第14章）。</b> '+
+    '<b>例外を認める場合は、必ず記録します。</b> '+
     '理由・決定者・適用期間・見直し日を残さない例外は、いつのまにか「新しいルール」になり、制度が崩れます。</div>';
   h += '<div class="card"><div class="card-body" style="padding:12px 16px;">'+
     '<button class="btn primary" data-act="excNew">＋ 例外を記録</button></div></div>';

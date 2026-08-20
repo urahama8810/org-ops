@@ -5,8 +5,8 @@
 var VIEWS = {};   /* 画面の登録先 */
 
 VIEWS.dashboard = {
-  title:'ダッシュボード',
-  desc:'いまの状態と、次にやることが1画面で分かります。',
+  title:'会社全体',
+  desc:'会社全体のいまの状態と、次にやることが1画面で分かります。',
   render:function(){
     var d = DB.data;
     var r = readinessScore();
@@ -15,11 +15,17 @@ VIEWS.dashboard = {
     var pp = planProgress();
     var h = '';
 
+    /* このパソコンで初めて開いた人には、共有で後から入った人にも案内を出す */
+    if(!seenIntro()){
+      h += renderIntroCard();
+    }
+
     /* 会社名が未設定なら最初の案内 */
     if(!d.settings.companyName && !d.employees.length){
       h += '<div class="notice">'+
-        '<b>はじめに。</b> このアプリは「評価制度・組織管理体制 90日導入プロジェクト指示書」を、そのまま運用するための道具です。'+
-        'まず <b>設定</b> で会社名とプロジェクト責任者を入力し、次に <b>社員・役割台帳</b> に全社員を登録してください。'+
+        '<b>ようこそ。</b> このアプリは、役割・目標・数字・報告のルールを1か所にまとめて、'+
+        'チーム全員が同じ情報を見ながら会社を動かすための道具です。'+
+        'まず <b>設定</b> で会社名を入れ、次に <b>社員・役割台帳</b> にメンバーを登録してください。'+
         '<div class="btn-row" style="margin-top:9px;">'+
         '<button class="btn primary" data-act="go" data-view="settings">① 設定を開く</button>'+
         '<button class="btn" data-act="go" data-view="employees">② 社員を登録する</button>'+
@@ -32,22 +38,24 @@ VIEWS.dashboard = {
     var badCount = alerts.filter(function(a){return a.level==='bad';}).length;
     h += '<div class="section-title">いまの状態</div>';
     h += '<div class="grid c4">'+
-      tile('導入完成度', r.total+'<small>%</small>',
+      tile('台帳と記録の充実度', r.total+'<small>%</small>',
            progressBar(r.total, r.total>=80?'ok':r.total>=50?'warn':'bad'),
-           r.total>=80?'ok':r.total>=50?'warn':'bad')+
-      tile('プロジェクト経過', pd.day>0? pd.day+'<small>日目</small>' : '<small>未開始</small>',
+           r.total>=80?'ok':r.total>=50?'warn':'bad', 'clipboard')+
+      tile('導入からの経過', pd.day>0? pd.day+'<small>日目</small>' : '<small>未開始</small>',
            pd.day>0 ? ('Week '+pd.week+' / 90日中 残り'+Math.max(0,90-pd.day)+'日') : '設定で開始日を入力',
-           'accent')+
-      tile('90日チェックリスト', pp.rate+'<small>%</small>', pp.done+' / '+pp.total+' 項目',
-           pp.rate>=80?'ok':pp.rate>=40?'warn':'bad')+
-      tile('要対応（ルール違反・停止要因）', badCount+'<small>件</small>',
-           '注意 '+alerts.filter(function(a){return a.level==='warn';}).length+'件',
-           badCount? 'bad':'ok')+
+           'accent', 'calendar')+
+      tile('導入の進み具合', pp.rate+'<small>%</small>',
+           pp.done+' / '+pp.total+' 項目'+
+           '<div class="foot">'+btn('導入の段取りを見る','go',{view:'plan'},'','arrowRight')+'</div>',
+           pp.rate>=80?'ok':pp.rate>=40?'warn':'bad', 'route')+
+      tile('いま手を打つこと', badCount+'<small>件</small>',
+           'あわせて確認 '+alerts.filter(function(a){return a.level==='warn';}).length+'件',
+           badCount? 'bad':'ok', 'alert')+
       '</div>';
 
     /* --- 対応すること --- */
-    h += '<div class="section-title">対応すること'+
-         '<span class="note">上から順に消していけば大丈夫です</span></div>';
+    h += '<div class="section-title">気づいたこと'+
+         '<span class="note">上から順に片づけていけば大丈夫です</span></div>';
 
     var parts = '<table class="tbl"><tbody>';
     r.parts.forEach(function(p){
@@ -61,18 +69,19 @@ VIEWS.dashboard = {
 
     h += '<div class="grid c21">'+
       '<div class="col">'+
-        card('いま対応すべきこと', renderAlerts(alerts), {
-          sub: alerts.length ? alerts.length+'件' : '問題は検出されていません' })+
+        card('いま気になっていること', renderAlerts(alerts), {
+          icon:'alert',
+          sub: alerts.length ? alerts.length+'件' : '気になる点はありません' })+
       '</div>'+
       '<div class="col">'+
         renderTodayFocus()+
-        card('6つのシートの整備状況', parts, {tight:true, sub:'指示書 第16章'})+
+        card('6つの記録の埋まり具合', parts, {icon:'clipboard', tight:true})+
         renderRecentActivity()+
       '</div>'+
     '</div>';
 
     /* --- 正の循環（先行指標） --- */
-    h += '<div class="section-title">正の循環'+
+    h += '<div class="section-title">良い流れの手ごたえ'+
          '<span class="note">売上より先に動く6つの数字</span></div>';
     h += renderCycleSnapshot();
 
@@ -87,20 +96,21 @@ VIEWS.dashboard = {
 
 function renderAlerts(alerts){
   if(!alerts.length){
-    return '<div class="alert ok"><span class="ic">✓</span><div><div class="t">未対応の指摘はありません</div>'+
-           '<div class="d">この状態を維持してください。週次KPI会議と月次1on1の記録を続けます。</div></div></div>';
+    return '<div class="alert ok"><span class="ic">'+ic('check',15)+'</span>'+
+           '<div class="body"><div class="t">いま気になる点はありません</div>'+
+           '<div class="d">この状態を保ちましょう。週次KPI会議と月次1on1の記録を続けてください。</div></div></div>';
   }
   var h = '';
   alerts.slice(0,10).forEach(function(a){
     h += '<div class="alert '+a.level+'">'+
-      '<span class="ic">'+(a.level==='bad'?'!':'▲')+'</span>'+
-      '<div style="flex:1;min-width:0;"><div class="t">'+esc(a.title)+'</div>'+
+      '<span class="ic">'+ic(a.level==='bad'?'alert':'info',15)+'</span>'+
+      '<div class="body"><div class="t">'+esc(a.title)+'</div>'+
       '<div class="d">'+esc(a.detail)+'</div></div>'+
-      '<div class="go">'+btn('対応','go',{view:a.view})+'</div></div>';
+      '<div class="go">'+btn('開く','go',a.tab?{view:a.view,tab:a.tab}:{view:a.view},'','arrowRight')+'</div></div>';
   });
   if(alerts.length > 10)
     h += '<div class="small muted center" style="padding-top:6px;">'+
-         'ほか '+(alerts.length-10)+'件。上から順に片づけると、下の指摘も一緒に消えていきます。</div>';
+         'ほか '+(alerts.length-10)+'件。上から順に片づけると、下の項目も一緒に消えていきます。</div>';
   return h;
 }
 
@@ -111,17 +121,19 @@ function renderTodayFocus(){
   for(var i=0;i<FIRST_STEPS.length;i++){ if(!fs[i]){ next = i; break; } }
   var body;
   if(next < 0){
-    body = '<div class="alert ok"><span class="ic">✓</span><div><div class="t">着手順10項目はすべて完了しています</div>'+
-           '<div class="d">運用フェーズです。週次KPI・月次1on1・四半期評価を回してください。</div></div></div>';
+    body = '<div class="alert ok"><span class="ic">'+ic('check',15)+'</span>'+
+           '<div class="body"><div class="t">最初の10項目はすべて完了しています</div>'+
+           '<div class="d">ここからは運用です。週次KPI・月次1on1・四半期評価を続けてください。</div></div></div>';
   }else{
-    body = '<div style="font-size:13px;color:#6a7789;margin-bottom:4px;">次にやること（指示書 第15章）</div>'+
-      '<div style="font-size:17px;font-weight:700;line-height:1.5;">'+(next+1)+'. '+esc(FIRST_STEPS[next])+'</div>'+
+    body = '<div class="small muted" style="margin-bottom:4px;">次にやること</div>'+
+      '<div class="headline" style="font-size:var(--fs-lg);">'+(next+1)+'. '+esc(FIRST_STEPS[next])+'</div>'+
       '<div class="btn-row" style="margin-top:10px;">'+
         '<button class="btn primary" data-act="doneFirstStep" data-i="'+next+'">完了にする</button>'+
-        '<button class="btn" data-act="go" data-view="plan">90日計画を見る</button>'+
+        '<button class="btn" data-act="go" data-view="plan">導入の段取りを見る</button>'+
       '</div>';
   }
-  return card('次の一手', body, {sub:'着手順 '+Object.keys(fs).filter(function(k){return fs[k];}).length+' / '+FIRST_STEPS.length});
+  var doneN = Object.keys(fs).filter(function(k){ return fs[k]; }).length;
+  return card('次の一手', body, {icon:'route', sub:FIRST_STEPS.length+'ステップ中 '+doneN+'つ完了'});
 }
 
 /* 最近の動き（誰が何を記録したかを、日付順に並べる） */
@@ -135,7 +147,7 @@ function renderRecentActivity(){
   d.oneOnOnes.forEach(function(o){ add(o.date, '1on1：'+empName(o.employeeId), 'oneonone'); });
   d.kpiWeeks.forEach(function(w){ add(w.weekOf, '週次KPI会議（'+w.weekOf+'の週）', 'kpi'); });
   d.evaluations.forEach(function(e){ if(e.stage==='explained') add(e.createdAt, '評価の説明完了：'+empName(e.employeeId), 'evaluations'); });
-  d.decisions.forEach(function(x){ add(x.decidedAt||x.raisedAt, '重大決裁：'+x.title, 'decisions'); });
+  d.decisions.forEach(function(x){ add(x.decidedAt||x.raisedAt, '重要な決定：'+x.title, 'decisions'); });
   d.ventures.forEach(function(x){ add(x.decidedAt||x.raisedAt, '新規案件：'+x.title, 'decisions'); });
   d.delegations.forEach(function(x){
     add(x.startDate, '委任：'+x.title, 'delegation');
@@ -213,7 +225,7 @@ function renderWeeklySnapshot(){
           return esc(r.owner?empName(r.owner):'担当未定')+'<br><span class="small muted">'+esc(r.due||'期限未定')+'</span>'; }}
       ], rows, {});
     }else{
-      body += '<div class="alert ok"><span class="ic">✓</span><div><div class="t">未達・注意の項目はありません</div></div></div>';
+      body += '<div class="alert ok"><span class="ic">'+ic('check',15)+'</span><div class="body"><div class="t">未達・注意の項目はありません</div></div></div>';
     }
   }
   return card('直近の週次KPI会議', body, {
@@ -261,7 +273,7 @@ function renderPeopleSnapshot(){
       {label:'', cls:'actions', render:function(x){ return btn('編集','empEdit',{id:x.e.id}); }}
     ], risky, {});
   }else if(d.employees.length){
-    body += '<div class="alert ok"><span class="ic">✓</span><div><div class="t">全社員の台帳が埋まっています</div>'+
+    body += '<div class="alert ok"><span class="ic">'+ic('check',15)+'</span><div class="body"><div class="t">全社員の台帳が埋まっています</div>'+
             '<div class="d">Week 1 の完成条件を満たしています。</div></div></div>';
   }else{
     body += '<div class="empty"><div class="big">社員が未登録です</div><div>まず全社員一覧を作ります。</div>'+
@@ -275,4 +287,48 @@ action('doneFirstStep', function(ds){
   DB.data.firstSteps[ds.i] = true;
   DB.save(); render();
   toast('完了にしました：'+FIRST_STEPS[ds.i], 'ok');
+});
+
+/* ============================================================
+   はじめての人への案内
+   共有で後から参加した人にも出るよう、データの有無ではなく
+   「このパソコンで読んだかどうか」で判定する。
+   ============================================================ */
+var INTRO_KEY = 'hyokaSeido_intro_v2';
+
+function seenIntro(){
+  try{ return localStorage.getItem(INTRO_KEY) === '1'; }catch(e){ return true; }
+}
+function setSeenIntro(v){
+  try{ v ? localStorage.setItem(INTRO_KEY,'1') : localStorage.removeItem(INTRO_KEY); }catch(e){}
+}
+
+function renderIntroCard(){
+  var mine = (typeof myEmpId === 'function' && myEmpId()) ? empName(myEmpId()) : '';
+  return '<div class="intro-card">'+
+    '<div class="ic">'+ic('sparkle',20)+'</div>'+
+    '<div class="tx">'+
+      '<div class="t">はじめての方へ</div>'+
+      '<div class="d">このアプリは、会社の目標・毎週の数字・1on1・評価を、'+
+      '<b>全員が同じ記録を見ながら</b>進めるための道具です。'+
+      '毎週の入力は数分で終わります。'+
+      (mine ? '' : '<br>まず「わたしの画面」で自分を選ぶと、自分に関係するものだけが表示されます。')+
+      '</div>'+
+      '<div class="btn-row">'+
+        '<button class="btn primary" data-act="go" data-view="me">'+ic('home',14)+'わたしの画面を開く</button>'+
+        '<a class="btn" href="'+GUIDE_URL+'" target="_blank" rel="noopener">'+ic('play',14)+'使い方の動画を見る</a>'+
+        '<button class="btn ghost" data-act="introClose">'+ic('check',14)+'わかりました</button>'+
+      '</div>'+
+    '</div></div>';
+}
+
+action('introClose', function(){
+  setSeenIntro(true);
+  render();
+  toast('この案内は「設定・データ」からいつでも開けます');
+});
+action('introShow', function(){
+  setSeenIntro(false);
+  currentView = 'dashboard';
+  render();
 });

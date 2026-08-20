@@ -21,8 +21,14 @@ function Read-Utf8($path) {
 # --- CSS ---
 $css = Read-Utf8 (Join-Path $src 'styles.css')
 
-# --- JS（ファイル名の昇順で結合。01-core.js → 99-app.js の順になる） ---
-$jsFiles = Get-ChildItem (Join-Path $src 'js') -Filter '*.js' | Sort-Object Name
+# --- JS（ファイル名の昇順で結合。01-core.js → 99-app.js の順になる）
+#     Sort-Object は日本語環境だとハイフンを軽く扱うため、
+#     04-dashboard.js と 04b-me.js の前後が入れ替わることがある。
+#     そこで文字コード順（Ordinal）で明示的に並べる ---
+$jsDir   = Join-Path $src 'js'
+$jsNames = @(Get-ChildItem $jsDir -Filter '*.js' | ForEach-Object { $_.Name })
+[Array]::Sort($jsNames, [StringComparer]::Ordinal)
+$jsFiles = $jsNames | ForEach-Object { Get-Item (Join-Path $jsDir $_) }
 $parts = @()
 foreach ($f in $jsFiles) {
   $parts += "/* ===== $($f.Name) ===== */"
