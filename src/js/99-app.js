@@ -96,6 +96,16 @@ function render(){
     '<span class="badge '+(r.total>=80?'ok':r.total>=50?'warn':'bad')+'">導入完成度 '+r.total+'%</span> '+
     '<span id="syncBadge">'+(typeof syncStatusHtml==='function'?syncStatusHtml():'')+'</span>';
 
+  var foot = document.getElementById('sideFoot');
+  if(foot){
+    var mode = (typeof SYNC !== 'undefined') ? SYNC.cfg.mode : 'local';
+    foot.innerHTML = mode === 'folder'
+      ? '会社の共有フォルダと同期しています。<br>週に1回はバックアップも保存してください。'
+      : mode === 'server'
+      ? '共有サーバーと同期しています。<br>週に1回はバックアップも保存してください。'
+      : 'データはこのPCのブラウザ内に保存されます。<br>定期的にバックアップを保存してください。';
+  }
+
   var view = document.getElementById('view');
   view.innerHTML = v.render();
   view.scrollTop = 0;

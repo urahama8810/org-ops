@@ -30,7 +30,8 @@ VIEWS.dashboard = {
 
     /* --- 上段タイル --- */
     var badCount = alerts.filter(function(a){return a.level==='bad';}).length;
-    h += '<div class="grid c4" style="margin-bottom:18px;">'+
+    h += '<div class="section-title">いまの状態</div>';
+    h += '<div class="grid c4">'+
       tile('導入完成度', r.total+'<small>%</small>',
            progressBar(r.total, r.total>=80?'ok':r.total>=50?'warn':'bad'),
            r.total>=80?'ok':r.total>=50?'warn':'bad')+
@@ -44,13 +45,10 @@ VIEWS.dashboard = {
            badCount? 'bad':'ok')+
       '</div>';
 
-    /* --- 今週やること --- */
-    h += '<div class="grid c2">';
-    h += '<div>' + card('いま対応すべきこと', renderAlerts(alerts), {
-      sub: alerts.length ? alerts.length+'件' : '問題は検出されていません'
-    }) + '</div>';
+    /* --- 対応すること --- */
+    h += '<div class="section-title">対応すること'+
+         '<span class="note">上から順に消していけば大丈夫です</span></div>';
 
-    /* --- 整備状況の内訳 --- */
     var parts = '<table class="tbl"><tbody>';
     r.parts.forEach(function(p){
       parts += '<tr><td style="width:150px;">'+esc(p.label)+'</td>'+
@@ -60,18 +58,28 @@ VIEWS.dashboard = {
         '<td class="actions" style="width:70px;">'+btn('開く','go',{view:p.view})+'</td></tr>';
     });
     parts += '</tbody></table>';
-    h += '<div>' + card('6つのシートの整備状況', parts, {tight:true,
-      sub:'指示書 第16章'}) + renderTodayFocus() + '</div>';
-    h += '</div>';
+
+    h += '<div class="grid c21">'+
+      '<div class="col">'+
+        card('いま対応すべきこと', renderAlerts(alerts), {
+          sub: alerts.length ? alerts.length+'件' : '問題は検出されていません' })+
+      '</div>'+
+      '<div class="col">'+
+        renderTodayFocus()+
+        card('6つのシートの整備状況', parts, {tight:true, sub:'指示書 第16章'})+
+        renderRecentActivity()+
+      '</div>'+
+    '</div>';
 
     /* --- 正の循環（先行指標） --- */
+    h += '<div class="section-title">正の循環'+
+         '<span class="note">売上より先に動く6つの数字</span></div>';
     h += renderCycleSnapshot();
 
     /* --- 今週の会議・1on1 --- */
-    h += '<div class="grid c2">'+
-      '<div>'+renderWeeklySnapshot()+'</div>'+
-      '<div>'+renderPeopleSnapshot()+'</div>'+
-    '</div>';
+    h += '<div class="section-title">今週と今月</div>';
+    /* カード1枚ずつなので、グリッドに直接置いて高さをそろえる */
+    h += '<div class="grid c2">'+ renderWeeklySnapshot() + renderPeopleSnapshot() +'</div>';
 
     return h;
   }
@@ -83,14 +91,16 @@ function renderAlerts(alerts){
            '<div class="d">この状態を維持してください。週次KPI会議と月次1on1の記録を続けます。</div></div></div>';
   }
   var h = '';
-  alerts.slice(0,14).forEach(function(a){
+  alerts.slice(0,10).forEach(function(a){
     h += '<div class="alert '+a.level+'">'+
       '<span class="ic">'+(a.level==='bad'?'!':'▲')+'</span>'+
       '<div style="flex:1;min-width:0;"><div class="t">'+esc(a.title)+'</div>'+
       '<div class="d">'+esc(a.detail)+'</div></div>'+
       '<div class="go">'+btn('対応','go',{view:a.view})+'</div></div>';
   });
-  if(alerts.length > 14) h += '<div class="small muted center">ほか '+(alerts.length-14)+'件</div>';
+  if(alerts.length > 10)
+    h += '<div class="small muted center" style="padding-top:6px;">'+
+         'ほか '+(alerts.length-10)+'件。上から順に片づけると、下の指摘も一緒に消えていきます。</div>';
   return h;
 }
 
@@ -114,6 +124,40 @@ function renderTodayFocus(){
   return card('次の一手', body, {sub:'着手順 '+Object.keys(fs).filter(function(k){return fs[k];}).length+' / '+FIRST_STEPS.length});
 }
 
+/* 最近の動き（誰が何を記録したかを、日付順に並べる） */
+function renderRecentActivity(){
+  var d = DB.data, items = [];
+  function add(when, what, view){
+    if(when) items.push({ when:String(when), what:what, view:view });
+  }
+  d.reports.forEach(function(r){ add(r.reportedAt||r.requestedAt, '報告：'+r.title, 'reports'); });
+  d.incidents.forEach(function(r){ add(r.date, '問題処理：'+r.title, 'reports'); });
+  d.oneOnOnes.forEach(function(o){ add(o.date, '1on1：'+empName(o.employeeId), 'oneonone'); });
+  d.kpiWeeks.forEach(function(w){ add(w.weekOf, '週次KPI会議（'+w.weekOf+'の週）', 'kpi'); });
+  d.evaluations.forEach(function(e){ if(e.stage==='explained') add(e.createdAt, '評価の説明完了：'+empName(e.employeeId), 'evaluations'); });
+  d.decisions.forEach(function(x){ add(x.decidedAt||x.raisedAt, '重大決裁：'+x.title, 'decisions'); });
+  d.ventures.forEach(function(x){ add(x.decidedAt||x.raisedAt, '新規案件：'+x.title, 'decisions'); });
+  d.delegations.forEach(function(x){
+    add(x.startDate, '委任：'+x.title, 'delegation');
+    (x.checks||[]).forEach(function(c){ if(c.doneAt) add(c.doneAt, '中間確認：'+x.title, 'delegation'); });
+  });
+  d.partners.forEach(function(x){ if(x.lastCheck) add(x.lastCheck, '関係者の定期確認：'+x.name, 'capital'); });
+  ((d.capital||{}).spends||[]).forEach(function(x){ add(x.date, '支出：'+x.title, 'capital'); });
+  d.improvementPlans.forEach(function(x){ add(x.startDate, '改善計画：'+empName(x.employeeId), 'improvement'); });
+
+  items = sortBy(items, function(i){ return i.when; }).reverse().slice(0,8);
+
+  if(!items.length) return '';        /* 何も記録がないうちは出さない */
+
+  var body = '<table class="tbl"><tbody>'+items.map(function(i){
+    return '<tr><td class="small muted nowrap" style="width:52px;">'+esc(shortDate(i.when))+'</td>'+
+           '<td class="small">'+esc(i.what)+'</td>'+
+           '<td class="actions" style="width:56px;">'+btn('開く','go',{view:i.view})+'</td></tr>';
+  }).join('')+'</tbody></table>';
+
+  return card('最近の動き', body, { tight:true, sub:'新しい順' });
+}
+
 /* 正の循環メーター（構造分析レポート 表7の先行指標） */
 function renderCycleSnapshot(){
   var m = leadingMetrics();
@@ -130,10 +174,10 @@ function renderCycleSnapshot(){
     var s = m[x.key].score;
     body += '<div class="tile '+(s===null?'':scoreCls(s))+'">'+
       '<div class="label">'+esc(x.label)+'</div>'+
-      '<div style="font-size:15px;font-weight:700;margin:3px 0 5px;line-height:1.4;">'+esc(m[x.key].value)+'</div>'+
+      '<div class="headline">'+esc(m[x.key].value)+'</div>'+
       (s===null ? '<div class="note">記録が貯まると測れます</div>'
                 : progressBar(s, scoreCls(s))+'<div class="note">'+esc(m[x.key].note)+'</div>')+
-      '<div style="margin-top:7px;">'+btn('開く','go',{view:x.view})+'</div>'+
+      '<div class="foot">'+btn(x.label+'を開く','go',{view:x.view})+'</div>'+
       '</div>';
   });
   body += '</div>';
@@ -187,6 +231,19 @@ function renderPeopleSnapshot(){
     tile('今月の1on1', oo.done+'<small>/'+oo.total+'</small>', oo.rate+'%', oo.rate>=90?'ok':oo.rate>=50?'warn':'bad')+
     tile('管理職', d.employees.filter(function(e){return directReports(e.id).length>0;}).length+'<small>名</small>','','')+
     '</div>';
+
+  /* 定着（育った人に残る理由を示せているか） */
+  var others = d.employees.filter(function(e){ return !e.isTop; });
+  var noPath = others.filter(function(e){ return !String(e.nextRole||'').trim(); });
+  if(others.length){
+    body += '<div class="small muted" style="margin-bottom:6px;">将来の役割・権限を示せている社員</div>'+
+      progressBar(Math.round((others.length-noPath.length)/others.length*100),
+                  noPath.length?'warn':'ok')+
+      '<div class="small muted" style="margin:4px 0 12px;">'+
+      (noPath.length ? '未提示 '+noPath.length+'名：'+esc(noPath.slice(0,4).map(function(e){return e.name;}).join('、'))+
+                       (noPath.length>4?' ほか':'')
+                     : '全員に将来像を示せています')+'</div>';
+  }
 
   var risky = d.employees.map(function(e){
     var st = ledgerStatus(e);

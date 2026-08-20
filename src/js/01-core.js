@@ -371,6 +371,13 @@ function fmtJp(dstr){
   if(String(dstr).length > 10) s += ' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
   return d.getFullYear()+'/'+s;
 }
+/* 一覧に並べるときの短い日付（8/20 のような表記） */
+function shortDate(x){
+  if(!x) return '';
+  var d = new Date(x);
+  if(isNaN(d.getTime())) return String(x).slice(5);
+  return (d.getMonth()+1)+'/'+d.getDate();
+}
 function monthStr(d){
   d = d ? new Date(d) : new Date();
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);

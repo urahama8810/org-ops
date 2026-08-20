@@ -96,7 +96,7 @@ VIEWS.settings = {
 
     /* 使い方 */
     h += card('このアプリの使い方',
-      '<div class="grid c2"><div>'+
+      '<div class="grid c2"><div class="col">'+
       '<h4>毎週やること</h4><ol class="list-plain" style="padding-left:18px;">'+
       '<li>週次KPI会議（45分）— 「週次KPI会議」画面で会議モードを開き、実績を入力する</li>'+
       '<li>未達項目に対策・担当者・期限を入れる</li>'+
@@ -105,7 +105,7 @@ VIEWS.settings = {
       '<li>全員と1on1（30分）— 「月次1on1」画面で記録</li>'+
       '<li>前回の約束の結果を確認する</li>'+
       '<li>会社・部門目標の最新値を更新する</li></ol>'+
-      '</div><div>'+
+      '</div><div class="col">'+
       '<h4>四半期ごと</h4><ol class="list-plain" style="padding-left:18px;">'+
       '<li>「四半期評価」で評価シートを一括作成</li>'+
       '<li>自己評価 → 上司評価 → 調整 → 確定 → 本人説明</li>'+
@@ -152,33 +152,32 @@ function renderSyncCard(){
   /* ① このPCのみ */
   body += '<div class="tile '+(mode==='local'?'accent':'')+'">'+
     '<div class="label">①このパソコンのみ</div>'+
-    '<div style="font-size:14px;font-weight:700;margin:4px 0 6px;">1人で使う</div>'+
+    '<div class="headline">1人で使う</div>'+
     '<div class="note">他のパソコンとはデータを共有しません。持ち出すときはバックアップのJSONを使います。</div>'+
-    '<div style="margin-top:8px;">'+(mode==='local'
+    '<div class="foot">'+(mode==='local'
       ? '<span class="badge accent">選択中</span>'
       : btn('この方法に戻す','syncModeLocal',{}))+'</div></div>';
 
   /* ② 共有フォルダ */
   body += '<div class="tile '+(mode==='folder'?'accent':'')+'">'+
     '<div class="label">②共有フォルダ（おすすめ）</div>'+
-    '<div style="font-size:14px;font-weight:700;margin:4px 0 6px;">社内の全員で共有</div>'+
+    '<div class="headline">社内の全員で共有</div>'+
     '<div class="note">'+(canFolder
       ? '会社の共有フォルダを1つ選ぶだけ。全員が同じフォルダを選べば、同じデータになります。'
       : 'このブラウザでは使えません。Chrome または Edge で開いてください。')+'</div>'+
-    '<div style="margin-top:8px;">'+
+    (mode==='folder' ? '<div class="note">ファイル名：'+esc(cfg.fileName||'org-ops-data.json')+'</div>' : '')+
+    '<div class="foot">'+
       (canFolder ? btn(mode==='folder'?'フォルダを選び直す':'共有フォルダに接続','syncPickFolder',{},mode==='folder'?'':'primary') : '')+
       (mode==='folder' ? ' <span class="badge accent">選択中</span>' : '')+
-    '</div>'+
-    (mode==='folder' ? '<div class="note" style="margin-top:6px;">ファイル名：'+esc(cfg.fileName||'org-ops-data.json')+'</div>' : '')+
-    '</div>';
+    '</div></div>';
 
   /* ③ 共有サーバー */
   body += '<div class="tile '+(mode==='server'?'accent':'')+'">'+
     '<div class="label">③共有サーバー</div>'+
-    '<div style="font-size:14px;font-weight:700;margin:4px 0 6px;">社外からも使う</div>'+
+    '<div class="headline">社外からも使う</div>'+
     '<div class="note">アドレスと合言葉を入れると、どこからでも同じデータを見られます。'+
     '（サーバーの作り方は README に手順があります）</div>'+
-    '<div style="margin-top:8px;">'+(mode==='server'?'<span class="badge accent">選択中</span>':'<span class="small muted">下の欄に入力</span>')+'</div>'+
+    '<div class="foot">'+(mode==='server'?'<span class="badge accent">選択中</span>':'<span class="small muted">下の欄に入力</span>')+'</div>'+
     '</div>';
   body += '</div>';
 

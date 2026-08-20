@@ -305,6 +305,8 @@ function syncNow(silent){
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(meta){
         if(!meta) return serverPull(silent);
+        /* 先に版数を合わせておく。これをしないと、保存のたびに競合と判定されてしまう */
+        if(typeof meta.rev === 'number') SYNC.rev = meta.rev;
         var mine = DB.data.meta.updatedAt||'';
         if((meta.updatedAt||'') > mine) return serverPull(silent);
         if(mine > (SYNC.lastPushedAt||'')) return serverPush(false);

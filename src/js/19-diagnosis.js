@@ -289,8 +289,8 @@ function renderLeading(m){
      ['感情と重大決裁が分離されているか','意思決定の防波堤','decisions']]
     .map(function(x){
       return '<div class="tile accent"><div class="label">上流指標</div>'+
-        '<div style="font-size:15px;font-weight:700;line-height:1.5;margin:4px 0 8px;">'+esc(x[0])+'</div>'+
-        '<button class="btn sm" data-act="go" data-view="'+x[2]+'">'+esc(x[1])+'を開く</button></div>';
+        '<div class="headline">'+esc(x[0])+'</div>'+
+        '<div class="foot"><button class="btn sm" data-act="go" data-view="'+x[2]+'">'+esc(x[1])+'を開く</button></div></div>';
     }).join('')+'</div>',
     { sub:'構造分析レポート 第13章' });
   return h;
@@ -313,11 +313,11 @@ function renderLoops(){
         '<div style="flex:1;"><div class="t">'+(s===null?'まだ記録が足りません':'防止スコア '+s+'%')+'</div>'+
         '<div class="d">'+esc(lp.chain)+'</div></div></div>'+
       '<div class="grid c2" style="margin-top:10px;">'+
-        '<div><div class="small muted" style="margin-bottom:4px;">いまの記録</div>'+
+        '<div class="col"><div class="small muted" style="margin-bottom:4px;">いまの記録</div>'+
           '<table class="tbl"><tbody>'+facts.map(function(f){
             return '<tr><td class="small">'+esc(f.label)+'</td><td class="num mono" style="width:110px;">'+esc(f.v)+'</td></tr>';
           }).join('')+'</tbody></table></div>'+
-        '<div><div class="small muted" style="margin-bottom:4px;">なぜ起きるのか</div>'+
+        '<div class="col"><div class="small muted" style="margin-bottom:4px;">なぜ起きるのか</div>'+
           '<div class="small" style="line-height:1.8;">'+esc(lp.why)+'</div>'+
           '<div class="small muted" style="margin:10px 0 4px;">断ち切り方</div>'+
           '<div class="small" style="line-height:1.8;"><b>'+esc(lp.breaker)+'</b></div>'+
@@ -401,7 +401,7 @@ function renderStructure(){
       '「人は育たない」「任せると失敗する」「自分が細かく管理するしかない」「育成や対話は時間の無駄」'+
       '「次の新しい案件に賭けた方が早い」という信念が強化される']]
     .map(function(x){
-      return '<div class="card" style="margin-bottom:0;"><div class="card-body">'+
+      return '<div class="card"><div class="card-body">'+
         '<div style="font-weight:700;color:#0f4c81;margin-bottom:6px;">'+esc(x[0])+'</div>'+
         '<div class="small" style="line-height:1.8;">'+esc(x[1])+'</div></div></div>';
     }).join('')+
