@@ -25,7 +25,7 @@ VIEWS.oneonone = {
     /* 月選択 */
     var months = uniq(d.oneOnOnes.map(function(o){ return o.month; }).concat([monthStr(), month]));
     months = sortBy(months, function(x){ return x; }).reverse();
-    var opts = months.map(function(m){ return '<option value="'+m+'"'+(m===month?' selected':'')+'>'+m+'</option>'; }).join('');
+    var opts = months.map(function(m){ return '<option value="'+esc(m)+'"'+(m===month?' selected':'')+'>'+esc(m)+'</option>'; }).join('');
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
       '<label>対象月</label><select data-change="oooMonth">'+opts+'</select>'+
       '<button class="btn primary" data-act="oooNew">＋ 1on1を記録</button>'+

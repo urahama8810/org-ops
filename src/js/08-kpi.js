@@ -26,7 +26,7 @@ VIEWS.kpi = {
 
     /* 操作バー */
     var opts = weeks.map(function(x){
-      return '<option value="'+x.id+'"'+(w&&x.id===w.id?' selected':'')+'>'+x.weekOf+' の週'+
+      return '<option value="'+esc(x.id)+'"'+(w&&x.id===w.id?' selected':'')+'>'+esc(x.weekOf)+' の週'+
              (x.closedAt?'（記録済）':'')+'</option>';
     }).join('');
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+

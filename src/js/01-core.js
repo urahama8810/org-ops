@@ -366,7 +366,7 @@ function fmtDateTimeLocal(d){
 function fmtJp(dstr){
   if(!dstr) return '—';
   var d = new Date(dstr);
-  if(isNaN(d.getTime())) return dstr;
+  if(isNaN(d.getTime())) return '—';   /* 日付として読めない値は、そのまま画面に出さない */
   var s = (d.getMonth()+1)+'/'+d.getDate();
   if(String(dstr).length > 10) s += ' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
   return d.getFullYear()+'/'+s;

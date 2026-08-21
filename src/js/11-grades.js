@@ -60,7 +60,7 @@ VIEWS.grades = {
       { label:'職種', width:'120px', render:function(e){ return esc(e.jobType||'—'); } },
       { label:'現等級', width:'150px', render:function(e){
           var opts = ['<option value="">未設定</option>'].concat(d.grades.map(function(g){
-            return '<option value="'+g.code+'"'+(e.grade===g.code?' selected':'')+'>'+g.code+' '+esc(g.expect)+'</option>'; })).join('');
+            return '<option value="'+esc(g.code)+'"'+(e.grade===g.code?' selected':'')+'>'+esc(g.code)+' '+esc(g.expect)+'</option>'; })).join('');
           return '<select data-change="gradeSet" data-id="'+e.id+'" style="padding:3px 6px;">'+opts+'</select>'; } },
       { label:'直近の評価', width:'120px', render:function(e){
           var evs = sortBy(DB.data.evaluations.filter(function(x){ return x.employeeId===e.id && evalScore(x)!==null; }),
@@ -159,7 +159,7 @@ action('gradePromote', function(ds){
   openForm({
     title:'昇格の検討：'+e.name, wide:true,
     intro:'<b>昇格は「これから頑張る人」ではなく「既に上位等級の仕事をしている人」に対して行います。</b><br>'+
-      '現等級：'+(e.grade||'未設定')+(next?' → 検討中：'+next.code+'（'+esc(next.expect)+'）':'（最上位）'),
+      '現等級：'+esc(e.grade||'未設定')+(next?' → 検討中：'+esc(next.code)+'（'+esc(next.expect)+'）':'（最上位）'),
     fields:[
       { key:'doingUpperWork', label:'上位等級の仕事を既に行っている', type:'checkbox', full:true,
         hint:'具体例を下の理由欄に書いてください。' },

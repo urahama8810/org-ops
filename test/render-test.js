@@ -562,6 +562,80 @@ t('共有：初回接続の処理がある（黙って上書きしない）', ()
   if(src.indexOf("SYNC.cfg.mode = 'folder'; syncSaveCfg();") >= 0 && /return folderSync(true);/.test(src))
     throw new Error('接続時に、確認せず同期する古い処理が残っている');
 });
+t('他の人が入れたタグが、そのまま画面に出ない', ()=>{
+  /* 共有アプリなので、誰かが名前や記録に入れたHTMLが、他の人の画面で動いてはいけない */
+  const XSS = '<img src=x onerror=BAD>';
+  ctx.buildDemoData();
+  function plant(obj, depth){
+    if(!obj || typeof obj !== 'object' || depth > 4) return;
+    Object.keys(obj).forEach(k=>{
+      const v = obj[k];
+      if(typeof v === 'string' && v.length > 1 && k !== 'id' && !/Id$/.test(k) 
+         && !/^(emp|dec|ven|dlg|par|cp|sp|row|wk|ooo|ev|rep|inc|exc|imp|chk|g)_/.test(v)){
+        obj[k] = XSS + v;
+      }else if(Array.isArray(v)){ v.forEach(x=>{ if(x && typeof x === 'object') plant(x, depth+1); }); }
+      else if(v && typeof v === 'object'){ plant(v, depth+1); }
+    });
+  }
+  Object.keys(DB.data).forEach(k=>{
+    const v = DB.data[k];
+    if(Array.isArray(v)) v.forEach(x=>plant(x,0));
+    else if(v && typeof v === 'object') plant(v,0);
+  });
+  const leaky = [];
+  Object.keys(VIEWS).forEach(k=>{
+    if(!VIEWS[k] || typeof VIEWS[k].render !== 'function') return;
+    let h;
+    try{ h = VIEWS[k].render(); }catch(e){ return; }
+    if(h.indexOf(XSS) >= 0) leaky.push(k);
+  });
+  if(leaky.length) throw new Error('タグがそのまま出る画面: '+leaky.join(', '));
+});
+t('引用符を入れても、属性が壊れない', ()=>{
+  const Q = '" onmouseover=BAD "';
+  ctx.buildDemoData();
+  DB.data.employees[0].name = Q;
+  DB.data.employees[0].dept = Q;
+  if(DB.data.grades[0]) DB.data.grades[0].code = Q;
+  const broken = [];
+  Object.keys(VIEWS).forEach(k=>{
+    if(!VIEWS[k] || typeof VIEWS[k].render !== 'function') return;
+    let h;
+    try{ h = VIEWS[k].render(); }catch(e){ return; }
+    if(h.indexOf(Q) >= 0) broken.push(k);
+  });
+  if(broken.length) throw new Error('引用符が抜ける画面: '+broken.join(', '));
+});
+t('記号が二重にエスケープされない', ()=>{
+  ctx.buildDemoData();
+  const emp = DB.data.employees[0];
+  emp.name = 'A&B<C>D'; emp.roleTitle = 'A&B'; emp.deliverables = 'A&B'; emp.authority = 'A&B';
+  ctx.setMyEmpId(emp.id);
+  const dbl = [];
+  Object.keys(VIEWS).forEach(k=>{
+    if(!VIEWS[k] || typeof VIEWS[k].render !== 'function') return;
+    let h;
+    try{ h = VIEWS[k].render(); }catch(e){ return; }
+    if(h.indexOf('&amp;amp;') >= 0 || h.indexOf('&amp;lt;') >= 0) dbl.push(k);
+  });
+  ctx.setMyEmpId('');
+  if(dbl.length) throw new Error('二重エスケープの画面: '+dbl.join(', '));
+});
+t('新しい構文が混ざっていない（古いブラウザ対策）', ()=>{
+  /* アプリ本体は ES5 相当で書く方針。混ざると古いブラウザで画面が真っ白になる */
+  const ARROW = String.fromCharCode(61, 62);
+  const BACKTICK = String.fromCharCode(96);
+  const bad = [];
+  fs.readdirSync(DIR).filter(f=>f.endsWith('.js')).forEach(f=>{
+    const src = fs.readFileSync(path.join(DIR,f),'utf8');
+    if(src.indexOf(ARROW) >= 0) bad.push(f+': アロー関数');
+    if(src.indexOf(BACKTICK) >= 0) bad.push(f+': テンプレートリテラル');
+    if(/[^A-Za-z0-9_$]let[ 	]+[A-Za-z_$]/.test(src)) bad.push(f+': let');
+    if(/[^A-Za-z0-9_$]const[ 	]+[A-Za-z_$]/.test(src)) bad.push(f+': const');
+    if(/[^A-Za-z0-9_$]class[ 	]+[A-Za-z_$]/.test(src)) bad.push(f+': class');
+  });
+  if(bad.length) throw new Error(bad.join(' / '));
+});
 t('全ナビ項目に対応する画面がある', ()=>{
   ctx.NAV.forEach(g=>g.items.forEach(it=>{
     if(!VIEWS[it.key]) throw new Error('画面が存在しない: '+it.key);

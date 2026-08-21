@@ -1435,7 +1435,7 @@ function fmtDateTimeLocal(d){
 function fmtJp(dstr){
   if(!dstr) return '—';
   var d = new Date(dstr);
-  if(isNaN(d.getTime())) return dstr;
+  if(isNaN(d.getTime())) return '—';   /* 日付として読めない値は、そのまま画面に出さない */
   var s = (d.getMonth()+1)+'/'+d.getDate();
   if(String(dstr).length > 10) s += ' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
   return d.getFullYear()+'/'+s;
@@ -3094,7 +3094,8 @@ VIEWS.me = {
     /* --- 自分の役割 --- */
     h += '<div class="section-title">わたしの役割<span class="note">迷ったらここに戻ってきてください</span></div>';
     function row(k, v){
-      return '<dt>'+esc(k)+'</dt><dd>'+(String(v||'').trim() ? nl2br(esc(v)) : '<span class="muted">未記入</span>')+'</dd>';
+      /* nl2br() は中で esc() しているので、ここで重ねてはいけない（&lt; がそのまま表示されてしまう） */
+      return '<dt>'+esc(k)+'</dt><dd>'+(String(v||'').trim() ? nl2br(v) : '<span class="muted">未記入</span>')+'</dd>';
     }
     h += '<div class="grid c2">'+
       card('担当していること',
@@ -3943,7 +3944,7 @@ VIEWS.kpi = {
 
     /* 操作バー */
     var opts = weeks.map(function(x){
-      return '<option value="'+x.id+'"'+(w&&x.id===w.id?' selected':'')+'>'+x.weekOf+' の週'+
+      return '<option value="'+esc(x.id)+'"'+(w&&x.id===w.id?' selected':'')+'>'+esc(x.weekOf)+' の週'+
              (x.closedAt?'（記録済）':'')+'</option>';
     }).join('');
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
@@ -4441,7 +4442,7 @@ VIEWS.oneonone = {
     /* 月選択 */
     var months = uniq(d.oneOnOnes.map(function(o){ return o.month; }).concat([monthStr(), month]));
     months = sortBy(months, function(x){ return x; }).reverse();
-    var opts = months.map(function(m){ return '<option value="'+m+'"'+(m===month?' selected':'')+'>'+m+'</option>'; }).join('');
+    var opts = months.map(function(m){ return '<option value="'+esc(m)+'"'+(m===month?' selected':'')+'>'+esc(m)+'</option>'; }).join('');
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
       '<label>対象月</label><select data-change="oooMonth">'+opts+'</select>'+
       '<button class="btn primary" data-act="oooNew">＋ 1on1を記録</button>'+
@@ -4753,7 +4754,7 @@ VIEWS.evaluations = {
     }
 
     /* 操作バー */
-    var opts = periodList().map(function(p){ return '<option value="'+p+'"'+(p===period?' selected':'')+'>'+p+'</option>'; }).join('');
+    var opts = periodList().map(function(p){ return '<option value="'+esc(p)+'"'+(p===period?' selected':'')+'>'+esc(p)+'</option>'; }).join('');
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
       '<label>評価期間</label><select data-change="evalPeriod">'+opts+'</select>'+
       '<button class="btn primary" data-act="evalCreateAll">この期間の評価シートを一括作成</button>'+
@@ -5181,7 +5182,7 @@ VIEWS.grades = {
       { label:'職種', width:'120px', render:function(e){ return esc(e.jobType||'—'); } },
       { label:'現等級', width:'150px', render:function(e){
           var opts = ['<option value="">未設定</option>'].concat(d.grades.map(function(g){
-            return '<option value="'+g.code+'"'+(e.grade===g.code?' selected':'')+'>'+g.code+' '+esc(g.expect)+'</option>'; })).join('');
+            return '<option value="'+esc(g.code)+'"'+(e.grade===g.code?' selected':'')+'>'+esc(g.code)+' '+esc(g.expect)+'</option>'; })).join('');
           return '<select data-change="gradeSet" data-id="'+e.id+'" style="padding:3px 6px;">'+opts+'</select>'; } },
       { label:'直近の評価', width:'120px', render:function(e){
           var evs = sortBy(DB.data.evaluations.filter(function(x){ return x.employeeId===e.id && evalScore(x)!==null; }),
@@ -5280,7 +5281,7 @@ action('gradePromote', function(ds){
   openForm({
     title:'昇格の検討：'+e.name, wide:true,
     intro:'<b>昇格は「これから頑張る人」ではなく「既に上位等級の仕事をしている人」に対して行います。</b><br>'+
-      '現等級：'+(e.grade||'未設定')+(next?' → 検討中：'+next.code+'（'+esc(next.expect)+'）':'（最上位）'),
+      '現等級：'+esc(e.grade||'未設定')+(next?' → 検討中：'+esc(next.code)+'（'+esc(next.expect)+'）':'（最上位）'),
     fields:[
       { key:'doingUpperWork', label:'上位等級の仕事を既に行っている', type:'checkbox', full:true,
         hint:'具体例を下の理由欄に書いてください。' },

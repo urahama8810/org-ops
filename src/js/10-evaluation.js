@@ -58,7 +58,7 @@ VIEWS.evaluations = {
     }
 
     /* 操作バー */
-    var opts = periodList().map(function(p){ return '<option value="'+p+'"'+(p===period?' selected':'')+'>'+p+'</option>'; }).join('');
+    var opts = periodList().map(function(p){ return '<option value="'+esc(p)+'"'+(p===period?' selected':'')+'>'+esc(p)+'</option>'; }).join('');
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
       '<label>評価期間</label><select data-change="evalPeriod">'+opts+'</select>'+
       '<button class="btn primary" data-act="evalCreateAll">この期間の評価シートを一括作成</button>'+

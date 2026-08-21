@@ -169,7 +169,8 @@ VIEWS.me = {
     /* --- 自分の役割 --- */
     h += '<div class="section-title">わたしの役割<span class="note">迷ったらここに戻ってきてください</span></div>';
     function row(k, v){
-      return '<dt>'+esc(k)+'</dt><dd>'+(String(v||'').trim() ? nl2br(esc(v)) : '<span class="muted">未記入</span>')+'</dd>';
+      /* nl2br() は中で esc() しているので、ここで重ねてはいけない（&lt; がそのまま表示されてしまう） */
+      return '<dt>'+esc(k)+'</dt><dd>'+(String(v||'').trim() ? nl2br(v) : '<span class="muted">未記入</span>')+'</dd>';
     }
     h += '<div class="grid c2">'+
       card('担当していること',
