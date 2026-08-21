@@ -257,7 +257,7 @@ action('evalOpen', function(ds){
      先に見えてしまうと、自己評価がそれに引きずられ、両者を突き合わせる意味がなくなる。 */
   var stage = ev.stage || 'self';
   var showMgr   = stage !== 'self';
-  var showCalib = (stage === 'calib' || stage === 'final' || stage === 'explained');
+  var showCalib = (stage === 'calibration' || stage === 'final' || stage === 'explained');
   var showFinal = (stage === 'final' || stage === 'explained');
 
   var stageNote = '';
@@ -300,7 +300,7 @@ action('evalOpen', function(ds){
     headNote:(ev.type==='manager'?'管理職':'一般社員')+'　'+EVAL_STAGES[idx].label,
     wide:true,
     body:body,
-    foot:'<button class="btn left" data-act="evalPrint" data-id="'+ev.id+'">印刷</button>'+
+    foot:'<button class="btn left" data-act="evalPrint" data-id="'+esc(ev.id)+'">印刷</button>'+
          '<button class="btn" data-modal-close>閉じる</button>'+
          '<button class="btn primary" id="evSave">保存</button>',
     onMount:function(root){
@@ -313,12 +313,13 @@ action('evalOpen', function(ds){
           ev.selfComments = ev.selfComments||{}; ev.comments = ev.comments||{};
           if(s) ev.selfScores[it.key] = num(s.value);
           if(m) ev.scores[it.key] = num(m.value);
-          ev.selfComments[it.key] = f.querySelector('[name="selfc_'+it.key+'"]').value;
-          ev.comments[it.key] = f.querySelector('[name="mgrc_'+it.key+'"]').value;
+          /* 段階によっては上司評価の欄などが描かれていない。あるものだけ取り込む */
+          var sc = f.querySelector('[name="selfc_'+it.key+'"]');  if(sc) ev.selfComments[it.key] = sc.value;
+          var mc = f.querySelector('[name="mgrc_'+it.key+'"]');   if(mc) ev.comments[it.key] = mc.value;
         });
-        ev.evidence = f.querySelector('[name="evidence"]').value;
-        ev.calibrationNote = f.querySelector('[name="calibrationNote"]').value;
-        ev.finalNote = f.querySelector('[name="finalNote"]').value;
+        var elEvid  = f.querySelector('[name="evidence"]');        if(elEvid)  ev.evidence = elEvid.value;
+        var elCalib = f.querySelector('[name="calibrationNote"]'); if(elCalib) ev.calibrationNote = elCalib.value;
+        var elFinal = f.querySelector('[name="finalNote"]');       if(elFinal) ev.finalNote = elFinal.value;
         DB.save(); closeModal(); render(); toast('保存しました','ok');
       });
     }

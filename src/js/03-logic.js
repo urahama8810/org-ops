@@ -93,7 +93,8 @@ function kpiRowStatus(row){
   var t = num(row.target), a = num(row.actual);
   var achieved = row.lowerIsBetter ? (a <= t) : (a >= t);
   if(achieved) return 'ok';
-  var ratio = row.lowerIsBetter ? (t===0?1:t/a) : (t===0?1:a/t);
+  /* 目標0で届かない場合（0件のはずが発生した／マイナス）は、完全な未達として扱う */
+  var ratio = row.lowerIsBetter ? (t===0?0:t/a) : (t===0?0:a/t);
   return ratio >= 0.9 ? 'watch' : 'ng';
 }
 function kpiGap(row){

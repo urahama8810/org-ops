@@ -210,9 +210,9 @@ action('empView', function(ds){
     title:e.name+'　役割シート', wide:true,
     headNote:(e.dept||'')+(e.grade?' / '+e.grade:''),
     body:employeeDetailHtml(e),
-    foot:'<button class="btn left" data-act="empPrintOne" data-id="'+e.id+'">印刷</button>'+
+    foot:'<button class="btn left" data-act="empPrintOne" data-id="'+esc(e.id)+'">印刷</button>'+
          '<button class="btn" data-modal-close>閉じる</button>'+
-         '<button class="btn primary" data-act="empEditFromView" data-id="'+e.id+'">編集する</button>'
+         '<button class="btn primary" data-act="empEditFromView" data-id="'+esc(e.id)+'">編集する</button>'
   });
 });
 action('empEditFromView', function(ds){ closeModal(); ACTIONS.empEdit(ds); });

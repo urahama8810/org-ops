@@ -32,10 +32,10 @@ VIEWS.kpi = {
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
       '<button class="btn primary" data-act="kpiNewWeek">＋ 今週の会議を作成</button>'+
       (weeks.length?'<label>表示する週</label><select data-change="kpiSelWeek">'+opts+'</select>':'')+
-      (w?'<button class="btn" data-act="kpiMeetingMode" data-id="'+w.id+'">▶ 会議モード（45分タイマー）</button>':'')+
+      (w?'<button class="btn" data-act="kpiMeetingMode" data-id="'+esc(w.id)+'">▶ 会議モード（45分タイマー）</button>':'')+
       '<span style="flex:1"></span>'+
-      (w?'<button class="btn" data-act="kpiCsv" data-id="'+w.id+'">CSV</button>'+
-         '<button class="btn" data-act="kpiPrint" data-id="'+w.id+'">議事記録を印刷</button>':'')+
+      (w?'<button class="btn" data-act="kpiCsv" data-id="'+esc(w.id)+'">CSV</button>'+
+         '<button class="btn" data-act="kpiPrint" data-id="'+esc(w.id)+'">議事記録を印刷</button>':'')+
       '</div></div></div>';
 
     if(!w){

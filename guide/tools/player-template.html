@@ -326,8 +326,14 @@ function speakFrame(from){
     var u = new SpeechSynthesisUtterance(curParts[curPart]);
     u.voice = voice; u.lang = 'ja-JP';
     u.rate = Math.max(0.5, Math.min(2, speed)); u.pitch = 1; u.volume = 1;
-    u.onend = function(){ errCount = 0; curPart++; next(); };
+    u.onend = function(){
+      if(seq !== speakSeq) return;               /* コマが変わったあとに届いた分は無視する */
+      errCount = 0; curPart++; next();
+    };
     u.onerror = function(){
+      /* 一時停止やコマ送りで自分が cancel() したときも error が届く。
+         これは音声の失敗ではないので数えない */
+      if(seq !== speakSeq) return;
       errCount++;
       /* オンライン音声が使えない環境では、この端末内の音声に切り替える */
       if(errCount === 2){
@@ -415,15 +421,19 @@ function tick(){
   paint();
 }
 function play(){
-  var last = (idx >= FRAMES.length-1);
-  if(last && spokenDone && elapsed >= FRAMES[idx].d){ idx = 0; elapsed = 0; curPart = 0; }
+  var restart = (idx >= FRAMES.length-1) && spokenDone && elapsed >= FRAMES[idx].d;
   playing = true;
   document.getElementById('playBtn').textContent = '❚❚ 一時停止';
   document.getElementById('bigbtn').className = 'bigbtn hide';
-  /* 一時停止した文の続きから読み直す */
-  speakFrame(curPart);
   clearInterval(timer);
   timer = setInterval(tick, 100);
+  if(restart){
+    /* 最初から見直す。show() が画像・見出し・目次をまとめて切り替える */
+    elapsed = 0; curPart = 0; show(0);
+  }else{
+    /* 一時停止した文の続きから読み直す */
+    speakFrame(curPart);
+  }
 }
 function pause(){
   playing = false;

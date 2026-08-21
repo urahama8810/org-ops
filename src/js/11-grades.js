@@ -61,7 +61,7 @@ VIEWS.grades = {
       { label:'現等級', width:'150px', render:function(e){
           var opts = ['<option value="">未設定</option>'].concat(d.grades.map(function(g){
             return '<option value="'+esc(g.code)+'"'+(e.grade===g.code?' selected':'')+'>'+esc(g.code)+' '+esc(g.expect)+'</option>'; })).join('');
-          return '<select data-change="gradeSet" data-id="'+e.id+'" style="padding:3px 6px;">'+opts+'</select>'; } },
+          return '<select data-change="gradeSet" data-id="'+esc(e.id)+'" style="padding:3px 6px;">'+opts+'</select>'; } },
       { label:'直近の評価', width:'120px', render:function(e){
           var evs = sortBy(DB.data.evaluations.filter(function(x){ return x.employeeId===e.id && evalScore(x)!==null; }),
                            function(x){ return x.period; });

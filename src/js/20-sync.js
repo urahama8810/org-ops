@@ -186,6 +186,11 @@ function folderLink(){ SYNC.cfg.mode = 'folder'; syncSaveCfg(); }
 function folderFirstSync(){
   return folderEnsure().then(function(ok){
     if(!ok) return false;
+    /* どちらを残すかを選び終わるまでは、共有フォルダのモードと自動同期をいったん外す。
+       すでに共有中のまま接続し直すと、選ばずに閉じただけで、そのあとの自動同期が
+       チーム全員分のデータを黙って上書きしてしまうため。 */
+    if(SYNC.cfg.mode === 'folder'){ SYNC.cfg.mode = 'local'; syncSaveCfg(); }
+    if(SYNC.timer){ clearInterval(SYNC.timer); SYNC.timer = null; }
     return folderRead().then(function(remote){
       /* 共有フォルダが空 → こちらの内容を最初のデータとして置く */
       if(!remote || !remote.data){
@@ -211,7 +216,14 @@ function folderFirstSync(){
           foot:'<button type="button" class="btn danger" id="fsPush">自分の内容で上書きする</button>'+
                '<button type="button" class="btn primary" id="fsPull">共有フォルダの内容を取り込む（推奨）</button>',
           onMount:function(root){
-            root.beforeClose = function(){ res(false); return true; };
+            root.beforeClose = function(){
+              SYNC.state = 'needPermission';
+              SYNC.message = 'どちらを残すかを選んでいないため、共有は止めたままです。'+
+                             'もう一度「共有フォルダに接続」を押してください。';
+              syncPaint(); render();
+              toast(SYNC.message,'bad');
+              res(false); return true;
+            };
             root.querySelector('#fsPull').addEventListener('click', function(){
               closeModal();
               syncApply(remote, '共有フォルダ');
@@ -350,6 +362,67 @@ function serverPush(force){
     });
 }
 
+/* 初回の接続。共有サーバーにすでにチームのデータがあるときは、
+   どちらを残すかを必ず選んでもらう（黙って上書きしない）。
+   選び終わるまで共有サーバーのモードには切り替えない。 */
+function serverLink(){ SYNC.cfg.mode = 'server'; syncSaveCfg(); }
+
+function serverFirstSync(){
+  SYNC.state='syncing'; syncPaint();
+  return fetch(serverUrl('/api/meta'), { headers:serverHeaders(), cache:'no-store' })
+    .then(function(r){
+      if(r.status===401) throw new Error('合言葉（チームキー）が違います');
+      if(!r.ok) throw new Error('サーバー応答 '+r.status);
+      return r.json();
+    })
+    .then(function(meta){
+      /* 共有サーバーが空 → こちらの内容を最初のデータとして送る */
+      if(!meta || meta.empty){
+        SYNC.rev = (meta && meta.rev) || 0;
+        serverLink();
+        return serverPush(true).then(function(){ syncStartTimer(); return 'push'; });
+      }
+      return new Promise(function(res){
+        openModal({
+          title:'共有サーバーには、すでにデータがあります',
+          body:'<div style="font-size:13.5px;line-height:1.8;">'+
+               '共有サーバーの更新：'+esc(fmtJp(meta.updatedAt))+
+               (meta.updatedBy?'（'+esc(meta.updatedBy)+'）':'')+'<br>'+
+               'このパソコンの更新：'+esc(fmtJp(DB.data.meta.updatedAt))+'<br><br>'+
+               'どちらの内容を残しますか。<br>'+
+               '<b>取り込む</b>を選ぶと、このパソコンの内容が共有サーバーの内容に置き換わります。<br>'+
+               '<b>自分の内容で上書きする</b>を選ぶと、共有サーバーにあるチーム全員分のデータが消えます。'+
+               '</div>',
+          foot:'<button type="button" class="btn danger" id="svPush">自分の内容で上書きする</button>'+
+               '<button type="button" class="btn primary" id="svPull">共有サーバーの内容を取り込む（推奨）</button>',
+          onMount:function(root){
+            /* 選ばずに閉じたときは、共有をまだ始めない（このパソコンのみのまま） */
+            root.beforeClose = function(){
+              SYNC.state='idle'; SYNC.message=''; syncPaint();
+              res(false); return true;
+            };
+            root.querySelector('#svPull').addEventListener('click', function(){
+              closeModal();
+              serverLink();
+              serverPull(false).then(function(){ syncStartTimer(); render(); res('pull'); });
+            });
+            root.querySelector('#svPush').addEventListener('click', function(){
+              closeModal();
+              serverLink();
+              SYNC.rev = meta.rev || 0;
+              serverPush(true).then(function(){ syncStartTimer(); render(); res('push'); });
+            });
+          }
+        });
+      });
+    })
+    .catch(function(e){
+      SYNC.state='error'; SYNC.message='共有サーバーに接続できません：'+(e&&e.message||e);
+      syncPaint(); toast(SYNC.message,'bad');
+      return false;
+    });
+}
+
 function syncConflictDialog(remote){
   openModal({
     title:'他の人が先に更新しています',
@@ -463,17 +536,10 @@ action('syncServerSave', function(){
   SYNC.cfg.teamKey   = key ? String(key.value).trim() : '';
   if(nm) SYNC.cfg.userName = String(nm.value).trim();
   if(!SYNC.cfg.serverUrl){ toast('共有サーバーのアドレスを入力してください','bad'); return; }
-  SYNC.cfg.mode = 'server';
   syncSaveCfg();
   toast('接続しています…','');
-  serverPull(false).then(function(ok){
-    if(SYNC.state!=='error'){
-      /* サーバーが空のときは、こちらの内容を最初のデータとして送る */
-      if(!ok) serverPush(true);
-      syncStartTimer();
-    }
-    render();
-  });
+  /* 共有フォルダと同じく、手元の内容が消える前に必ず選んでもらう */
+  serverFirstSync().then(function(){ render(); });
 });
 
 action('syncUserSave', function(){

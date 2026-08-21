@@ -111,7 +111,7 @@ function renderPromises(o){
   return '<div style="margin-top:8px;border-top:1px dashed var(--border);padding-top:8px;">'+
     '<div class="small muted">翌月の約束</div>'+
     ps.map(function(p,i){
-      return '<label class="chk"><input type="checkbox" data-change="oooPromise" data-id="'+o.id+'" data-i="'+i+'"'+(p.done?' checked':'')+'>'+
+      return '<label class="chk"><input type="checkbox" data-change="oooPromise" data-id="'+esc(o.id)+'" data-i="'+i+'"'+(p.done?' checked':'')+'>'+
         '<span class="small'+(p.done?' muted':'')+'" style="'+(p.done?'text-decoration:line-through;':'')+'">'+esc(p.text)+
         (p.due?' <span class="tag">'+esc(p.due)+'</span>':'')+'</span></label>';
     }).join('')+'</div>';

@@ -136,6 +136,23 @@ t('トップページは動作確認の案内を返す', async ()=>{
   if(r.status !== 200 || html.indexOf('共有サーバー') < 0) throw new Error('案内が出ない');
 });
 
+t('合言葉が未設定のサーバーは、誰にも開かない', async ()=>{
+  /* 設定漏れのまま公開すると、URLを知る誰でも人事データを読み書きできてしまう */
+  const env = mkEnv(undefined);
+  const r = await worker.fetch(req('/api/data'), env);
+  if(r.status !== 503) throw new Error('読み取りが止まっていない: status=' + r.status);
+  const w = await worker.fetch(req('/api/data', { method:'PUT',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify({ data:{}, rev:0 }) }), env);
+  if(w.status !== 503) throw new Error('書き込みが止まっていない: status=' + w.status);
+});
+t('合言葉が設定されていれば、正しい合言葉で通る', async ()=>{
+  const env = mkEnv('himitsu');
+  const ng = await worker.fetch(req('/api/data', withKey('wrong-key')), env);
+  if(ng.status !== 401) throw new Error('違う合言葉が通ってしまう: status=' + ng.status);
+  const ok = await worker.fetch(req('/api/data', withKey('himitsu')), env);
+  if(ok.status !== 200) throw new Error('正しい合言葉で通らない: status=' + ok.status);
+});
+
 t('置き場所が未設定なら、その旨を返す', async ()=>{
   const env = { TEAM_KEY:'himitsu' };
   const r = await worker.fetch(req('/api/data', withKey('himitsu')), env);

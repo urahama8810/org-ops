@@ -110,7 +110,7 @@ function renderGoalChain(){
       h += '</div>';
     }else{
       h += '<div class="small muted" style="margin-top:4px;padding-left:14px;">↳ 紐づく部門目標がありません。'+
-           '<button class="btn sm" data-act="goalNew" data-level="dept" data-parent="'+g.id+'">部門目標を追加</button></div>';
+           '<button class="btn sm" data-act="goalNew" data-level="dept" data-parent="'+esc(g.id)+'">部門目標を追加</button></div>';
     }
     h += '</div>';
   });

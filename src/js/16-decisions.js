@@ -32,6 +32,13 @@ function holdLabel(iso){
   if(h < 1) return '<span class="badge warn">あと'+Math.ceil(h*60)+'分</span>';
   return '<span class="badge warn">あと'+Math.ceil(h)+'時間</span>';
 }
+/* 編集フォームに渡す値。日時の欄は、日時入力欄が読める形（YYYY-MM-DDTHH:mm）に戻す */
+function withLocalRaisedAt(rec){
+  var v = {};
+  for(var k in rec) v[k] = rec[k];
+  v.raisedAt = fmtDateTimeLocal(rec.raisedAt);
+  return v;
+}
 
 /* 確定してよい状態か。理由をつけて返す */
 function decisionCanDecide(dec){
@@ -281,7 +288,7 @@ action('decEdit', function(ds){
       { key:'reason', label:'そう決めた理由（記録に残す）', type:'textarea', rows:2, full:true },
       { key:'review', label:'この判断を見直す日', type:'date' }
     ]),
-    value:rec,
+    value:withLocalRaisedAt(rec),
     submitLabel:'保存',
     onSubmit:function(v){
       for(var k in v) rec[k] = v[k];
@@ -384,7 +391,7 @@ action('venEdit', function(ds){
       { key:'reviewNote', label:'審査で出た意見', type:'textarea', rows:2, full:true },
       { key:'result', label:'結果・実績', type:'textarea', rows:2, full:true }
     ]),
-    value:rec, submitLabel:'保存',
+    value:withLocalRaisedAt(rec), submitLabel:'保存',
     onSubmit:function(v){
       for(var k in v) rec[k] = v[k];
       if(rec.raisedAt) rec.raisedAt = new Date(rec.raisedAt).toISOString();

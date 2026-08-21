@@ -636,6 +636,98 @@ t('新しい構文が混ざっていない（古いブラウザ対策）', ()=>{
   });
   if(bad.length) throw new Error(bad.join(' / '));
 });
+t('評価シートは、どの段階でも保存できる', ()=>{
+  /* 段階によっては上司評価の欄が描かれない。それを読もうとして落ちないこと。
+     このDOMスタブは querySelector が必ずノードを返すので、
+     ここでは実際のHTMLに存在する name= だけを返すものを用意して確かめる */
+  function rootFor(bodyHtml){
+    const names = {};
+    const re = /name="([^"]+)"/g;
+    let m;
+    while((m = re.exec(bodyHtml))) names[m[1]] = true;
+    const saveBtn = mkNode('button');
+    saveBtn._h = [];
+    saveBtn.addEventListener = function(ev,fn){ if(ev==='click') saveBtn._h.push(fn); };
+    saveBtn.click = function(){ saveBtn._h.forEach(f=>f({preventDefault(){}})); };
+    const form = {
+      querySelector(sel){
+        const nm = (sel.match(/\[name="([^"]+)"\]/)||[])[1];
+        if(nm && !names[nm]) return null;
+        const n = mkNode('input'); n.value = '記入テスト'; return n;
+      },
+      querySelectorAll(sel){
+        const nm = (sel.match(/\[name="([^"]+)"\]/)||[])[1];
+        const a = []; a.forEach = Array.prototype.forEach;
+        if(nm && names[nm]){ const n = mkNode('input'); n.checked = true; n.value = '3'; a.push(n); }
+        return a;
+      },
+      addEventListener(){}
+    };
+    return { querySelector(sel){
+      if(sel === '#evSave') return saveBtn;
+      if(sel === '#evForm' || sel === '#mForm') return form;
+      return form.querySelector(sel);
+    }, _saveBtn: saveBtn };
+  }
+  const bad = [];
+  ['self','manager','calibration','final','explained'].forEach(stage=>{
+    ctx.buildDemoData();
+    const ev = DB.data.evaluations[0];
+    ev.stage = stage;
+    ev.evidence = '前からある根拠'; ev.calibrationNote = '前からある調整メモ'; ev.finalNote = '前からある説明';
+    let captured = null;
+    const orig = ctx.openModal;
+    ctx.openModal = function(opts){
+      const root = rootFor(String(opts.body||''));
+      captured = root;
+      if(opts.onMount) opts.onMount(root);
+      return root;
+    };
+    try{ ACTIONS.evalOpen({id:ev.id}, mkNode('button'), {preventDefault(){}}); }
+    catch(e){ ctx.openModal = orig; bad.push(stage+'（開く時点で落ちる: '+e.message+'）'); return; }
+    ctx.openModal = orig;
+    if(!captured){ bad.push(stage+'（シートが開かない）'); return; }
+    try{ captured._saveBtn.click(); }
+    catch(e){ bad.push(stage+'（保存で落ちる: '+e.message+'）'); return; }
+    const after = ctx.byId(DB.data.evaluations, ev.id);
+    if(after.evidence !== '前からある根拠' && !/記入テスト/.test(after.evidence||''))
+      bad.push(stage+'（根拠が空で上書きされた）');
+    if(after.finalNote !== '前からある説明' && !/記入テスト/.test(after.finalNote||''))
+      bad.push(stage+'（本人への説明が空で上書きされた）');
+  });
+  if(bad.length) throw new Error(bad.join(' / '));
+});
+t('目標0のKPIは、届かなければ未達になる', ()=>{
+  /* クレーム0件・事故0件のような目標は、1件でも出たら未達 */
+  if(ctx.kpiRowStatus({target:0, actual:8, lowerIsBetter:true}) !== 'ng')
+    throw new Error('目標0件で8件発生したのに未達にならない');
+  if(ctx.kpiRowStatus({target:0, actual:0, lowerIsBetter:true}) !== 'ok')
+    throw new Error('目標0件で0件なら達成のはず');
+  if(ctx.kpiRowStatus({target:0, actual:-5}) !== 'ng')
+    throw new Error('目標0でマイナスなら未達のはず');
+  if(ctx.kpiRowStatus({target:0, actual:0}) !== 'ok')
+    throw new Error('目標0で0なら達成のはず');
+});
+t('決定を編集しても、持ち上がった日時が消えない', ()=>{
+  ctx.buildDemoData();
+  const rec = DB.data.decisions.filter(x=>x.raisedAt)[0];
+  const before = rec.raisedAt;
+  let captured = null;
+  const orig = ctx.openForm;
+  ctx.openForm = function(opts){ captured = opts; };
+  try{ ACTIONS.decEdit({id:rec.id}, mkNode('button'), {preventDefault(){}}); }
+  finally{ ctx.openForm = orig; }
+  if(!captured) throw new Error('編集フォームが開かない');
+  const v = captured.value || {};
+  if(!v.raisedAt) throw new Error('日時がフォームに渡っていない');
+  if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v.raisedAt))
+    throw new Error('日時入力欄が読める形になっていない: '+v.raisedAt);
+  captured.onSubmit(Object.assign({}, v));
+  const after = ctx.byId(DB.data.decisions, rec.id);
+  if(!after.raisedAt) throw new Error('保存したら日時が消えた');
+  if(Math.abs(new Date(after.raisedAt) - new Date(before)) > 60000)
+    throw new Error('日時がずれた: '+before+' → '+after.raisedAt);
+});
 t('全ナビ項目に対応する画面がある', ()=>{
   ctx.NAV.forEach(g=>g.items.forEach(it=>{
     if(!VIEWS[it.key]) throw new Error('画面が存在しない: '+it.key);

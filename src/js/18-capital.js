@@ -94,7 +94,7 @@ function renderCapital(){
     '</div>';
 
   h += '<div class="grid c4" style="margin-bottom:16px;">'+
-    tile('対象の期', period||'<small>未登録</small>',
+    tile('対象の期', period ? esc(period) : '<small>未登録</small>',
          period ? '利益 '+yen(sum.profit)+'円'
                 : '<div class="foot">'+btn('この期の数字を入れる','capQuick',{},'primary','plus')+'</div>',
          'accent','calendar')+

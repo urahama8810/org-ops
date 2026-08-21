@@ -38,7 +38,7 @@ function json(obj, status){
 }
 function authOk(request, env){
   const need = env.TEAM_KEY || '';
-  if (!need) return true;                       // 合言葉未設定なら素通し（開発用）
+  if (!need) return null;                       // 合言葉が未設定＝設定漏れ。開けずに止める
   return request.headers.get('X-Team-Key') === need;
 }
 
@@ -66,7 +66,11 @@ export default {
     if (!url.pathname.startsWith('/api/')) {
       return json({ error: 'not found' }, 404);
     }
-    if (!authOk(request, env)) {
+    const authed = authOk(request, env);
+    if (authed === null) {
+      return json({ error: 'このサーバーは合言葉（TEAM_KEY）が設定されていないため、使えません。管理者に連絡してください。' }, 503);
+    }
+    if (!authed) {
       return json({ error: 'unauthorized' }, 401);
     }
     if (!env.ORG_OPS) {
