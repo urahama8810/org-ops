@@ -1435,7 +1435,7 @@ function fmtDateTimeLocal(d){
 function fmtJp(dstr){
   if(!dstr) return '—';
   var d = new Date(dstr);
-  if(isNaN(d.getTime())) return dstr;
+  if(isNaN(d.getTime())) return '—';   /* 日付として読めない値は、そのまま画面に出さない */
   var s = (d.getMonth()+1)+'/'+d.getDate();
   if(String(dstr).length > 10) s += ' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
   return d.getFullYear()+'/'+s;
@@ -2159,7 +2159,8 @@ function kpiRowStatus(row){
   var t = num(row.target), a = num(row.actual);
   var achieved = row.lowerIsBetter ? (a <= t) : (a >= t);
   if(achieved) return 'ok';
-  var ratio = row.lowerIsBetter ? (t===0?1:t/a) : (t===0?1:a/t);
+  /* 目標0で届かない場合（0件のはずが発生した／マイナス）は、完全な未達として扱う */
+  var ratio = row.lowerIsBetter ? (t===0?0:t/a) : (t===0?0:a/t);
   return ratio >= 0.9 ? 'watch' : 'ng';
 }
 function kpiGap(row){
@@ -3094,7 +3095,8 @@ VIEWS.me = {
     /* --- 自分の役割 --- */
     h += '<div class="section-title">わたしの役割<span class="note">迷ったらここに戻ってきてください</span></div>';
     function row(k, v){
-      return '<dt>'+esc(k)+'</dt><dd>'+(String(v||'').trim() ? nl2br(esc(v)) : '<span class="muted">未記入</span>')+'</dd>';
+      /* nl2br() は中で esc() しているので、ここで重ねてはいけない（&lt; がそのまま表示されてしまう） */
+      return '<dt>'+esc(k)+'</dt><dd>'+(String(v||'').trim() ? nl2br(v) : '<span class="muted">未記入</span>')+'</dd>';
     }
     h += '<div class="grid c2">'+
       card('担当していること',
@@ -3386,9 +3388,9 @@ action('empView', function(ds){
     title:e.name+'　役割シート', wide:true,
     headNote:(e.dept||'')+(e.grade?' / '+e.grade:''),
     body:employeeDetailHtml(e),
-    foot:'<button class="btn left" data-act="empPrintOne" data-id="'+e.id+'">印刷</button>'+
+    foot:'<button class="btn left" data-act="empPrintOne" data-id="'+esc(e.id)+'">印刷</button>'+
          '<button class="btn" data-modal-close>閉じる</button>'+
-         '<button class="btn primary" data-act="empEditFromView" data-id="'+e.id+'">編集する</button>'
+         '<button class="btn primary" data-act="empEditFromView" data-id="'+esc(e.id)+'">編集する</button>'
   });
 });
 action('empEditFromView', function(ds){ closeModal(); ACTIONS.empEdit(ds); });
@@ -3648,7 +3650,7 @@ function renderGoalChain(){
       h += '</div>';
     }else{
       h += '<div class="small muted" style="margin-top:4px;padding-left:14px;">↳ 紐づく部門目標がありません。'+
-           '<button class="btn sm" data-act="goalNew" data-level="dept" data-parent="'+g.id+'">部門目標を追加</button></div>';
+           '<button class="btn sm" data-act="goalNew" data-level="dept" data-parent="'+esc(g.id)+'">部門目標を追加</button></div>';
     }
     h += '</div>';
   });
@@ -3943,16 +3945,16 @@ VIEWS.kpi = {
 
     /* 操作バー */
     var opts = weeks.map(function(x){
-      return '<option value="'+x.id+'"'+(w&&x.id===w.id?' selected':'')+'>'+x.weekOf+' の週'+
+      return '<option value="'+esc(x.id)+'"'+(w&&x.id===w.id?' selected':'')+'>'+esc(x.weekOf)+' の週'+
              (x.closedAt?'（記録済）':'')+'</option>';
     }).join('');
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
       '<button class="btn primary" data-act="kpiNewWeek">＋ 今週の会議を作成</button>'+
       (weeks.length?'<label>表示する週</label><select data-change="kpiSelWeek">'+opts+'</select>':'')+
-      (w?'<button class="btn" data-act="kpiMeetingMode" data-id="'+w.id+'">▶ 会議モード（45分タイマー）</button>':'')+
+      (w?'<button class="btn" data-act="kpiMeetingMode" data-id="'+esc(w.id)+'">▶ 会議モード（45分タイマー）</button>':'')+
       '<span style="flex:1"></span>'+
-      (w?'<button class="btn" data-act="kpiCsv" data-id="'+w.id+'">CSV</button>'+
-         '<button class="btn" data-act="kpiPrint" data-id="'+w.id+'">議事記録を印刷</button>':'')+
+      (w?'<button class="btn" data-act="kpiCsv" data-id="'+esc(w.id)+'">CSV</button>'+
+         '<button class="btn" data-act="kpiPrint" data-id="'+esc(w.id)+'">議事記録を印刷</button>':'')+
       '</div></div></div>';
 
     if(!w){
@@ -4441,7 +4443,7 @@ VIEWS.oneonone = {
     /* 月選択 */
     var months = uniq(d.oneOnOnes.map(function(o){ return o.month; }).concat([monthStr(), month]));
     months = sortBy(months, function(x){ return x; }).reverse();
-    var opts = months.map(function(m){ return '<option value="'+m+'"'+(m===month?' selected':'')+'>'+m+'</option>'; }).join('');
+    var opts = months.map(function(m){ return '<option value="'+esc(m)+'"'+(m===month?' selected':'')+'>'+esc(m)+'</option>'; }).join('');
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
       '<label>対象月</label><select data-change="oooMonth">'+opts+'</select>'+
       '<button class="btn primary" data-act="oooNew">＋ 1on1を記録</button>'+
@@ -4527,7 +4529,7 @@ function renderPromises(o){
   return '<div style="margin-top:8px;border-top:1px dashed var(--border);padding-top:8px;">'+
     '<div class="small muted">翌月の約束</div>'+
     ps.map(function(p,i){
-      return '<label class="chk"><input type="checkbox" data-change="oooPromise" data-id="'+o.id+'" data-i="'+i+'"'+(p.done?' checked':'')+'>'+
+      return '<label class="chk"><input type="checkbox" data-change="oooPromise" data-id="'+esc(o.id)+'" data-i="'+i+'"'+(p.done?' checked':'')+'>'+
         '<span class="small'+(p.done?' muted':'')+'" style="'+(p.done?'text-decoration:line-through;':'')+'">'+esc(p.text)+
         (p.due?' <span class="tag">'+esc(p.due)+'</span>':'')+'</span></label>';
     }).join('')+'</div>';
@@ -4753,7 +4755,7 @@ VIEWS.evaluations = {
     }
 
     /* 操作バー */
-    var opts = periodList().map(function(p){ return '<option value="'+p+'"'+(p===period?' selected':'')+'>'+p+'</option>'; }).join('');
+    var opts = periodList().map(function(p){ return '<option value="'+esc(p)+'"'+(p===period?' selected':'')+'>'+esc(p)+'</option>'; }).join('');
     h += '<div class="card"><div class="card-body" style="padding:12px 16px;"><div class="inline-form">'+
       '<label>評価期間</label><select data-change="evalPeriod">'+opts+'</select>'+
       '<button class="btn primary" data-act="evalCreateAll">この期間の評価シートを一括作成</button>'+
@@ -4952,7 +4954,7 @@ action('evalOpen', function(ds){
      先に見えてしまうと、自己評価がそれに引きずられ、両者を突き合わせる意味がなくなる。 */
   var stage = ev.stage || 'self';
   var showMgr   = stage !== 'self';
-  var showCalib = (stage === 'calib' || stage === 'final' || stage === 'explained');
+  var showCalib = (stage === 'calibration' || stage === 'final' || stage === 'explained');
   var showFinal = (stage === 'final' || stage === 'explained');
 
   var stageNote = '';
@@ -4995,7 +4997,7 @@ action('evalOpen', function(ds){
     headNote:(ev.type==='manager'?'管理職':'一般社員')+'　'+EVAL_STAGES[idx].label,
     wide:true,
     body:body,
-    foot:'<button class="btn left" data-act="evalPrint" data-id="'+ev.id+'">印刷</button>'+
+    foot:'<button class="btn left" data-act="evalPrint" data-id="'+esc(ev.id)+'">印刷</button>'+
          '<button class="btn" data-modal-close>閉じる</button>'+
          '<button class="btn primary" id="evSave">保存</button>',
     onMount:function(root){
@@ -5008,12 +5010,13 @@ action('evalOpen', function(ds){
           ev.selfComments = ev.selfComments||{}; ev.comments = ev.comments||{};
           if(s) ev.selfScores[it.key] = num(s.value);
           if(m) ev.scores[it.key] = num(m.value);
-          ev.selfComments[it.key] = f.querySelector('[name="selfc_'+it.key+'"]').value;
-          ev.comments[it.key] = f.querySelector('[name="mgrc_'+it.key+'"]').value;
+          /* 段階によっては上司評価の欄などが描かれていない。あるものだけ取り込む */
+          var sc = f.querySelector('[name="selfc_'+it.key+'"]');  if(sc) ev.selfComments[it.key] = sc.value;
+          var mc = f.querySelector('[name="mgrc_'+it.key+'"]');   if(mc) ev.comments[it.key] = mc.value;
         });
-        ev.evidence = f.querySelector('[name="evidence"]').value;
-        ev.calibrationNote = f.querySelector('[name="calibrationNote"]').value;
-        ev.finalNote = f.querySelector('[name="finalNote"]').value;
+        var elEvid  = f.querySelector('[name="evidence"]');        if(elEvid)  ev.evidence = elEvid.value;
+        var elCalib = f.querySelector('[name="calibrationNote"]'); if(elCalib) ev.calibrationNote = elCalib.value;
+        var elFinal = f.querySelector('[name="finalNote"]');       if(elFinal) ev.finalNote = elFinal.value;
         DB.save(); closeModal(); render(); toast('保存しました','ok');
       });
     }
@@ -5181,8 +5184,8 @@ VIEWS.grades = {
       { label:'職種', width:'120px', render:function(e){ return esc(e.jobType||'—'); } },
       { label:'現等級', width:'150px', render:function(e){
           var opts = ['<option value="">未設定</option>'].concat(d.grades.map(function(g){
-            return '<option value="'+g.code+'"'+(e.grade===g.code?' selected':'')+'>'+g.code+' '+esc(g.expect)+'</option>'; })).join('');
-          return '<select data-change="gradeSet" data-id="'+e.id+'" style="padding:3px 6px;">'+opts+'</select>'; } },
+            return '<option value="'+esc(g.code)+'"'+(e.grade===g.code?' selected':'')+'>'+esc(g.code)+' '+esc(g.expect)+'</option>'; })).join('');
+          return '<select data-change="gradeSet" data-id="'+esc(e.id)+'" style="padding:3px 6px;">'+opts+'</select>'; } },
       { label:'直近の評価', width:'120px', render:function(e){
           var evs = sortBy(DB.data.evaluations.filter(function(x){ return x.employeeId===e.id && evalScore(x)!==null; }),
                            function(x){ return x.period; });
@@ -5280,7 +5283,7 @@ action('gradePromote', function(ds){
   openForm({
     title:'昇格の検討：'+e.name, wide:true,
     intro:'<b>昇格は「これから頑張る人」ではなく「既に上位等級の仕事をしている人」に対して行います。</b><br>'+
-      '現等級：'+(e.grade||'未設定')+(next?' → 検討中：'+next.code+'（'+esc(next.expect)+'）':'（最上位）'),
+      '現等級：'+esc(e.grade||'未設定')+(next?' → 検討中：'+esc(next.code)+'（'+esc(next.expect)+'）':'（最上位）'),
     fields:[
       { key:'doingUpperWork', label:'上位等級の仕事を既に行っている', type:'checkbox', full:true,
         hint:'具体例を下の理由欄に書いてください。' },
@@ -6833,6 +6836,13 @@ function holdLabel(iso){
   if(h < 1) return '<span class="badge warn">あと'+Math.ceil(h*60)+'分</span>';
   return '<span class="badge warn">あと'+Math.ceil(h)+'時間</span>';
 }
+/* 編集フォームに渡す値。日時の欄は、日時入力欄が読める形（YYYY-MM-DDTHH:mm）に戻す */
+function withLocalRaisedAt(rec){
+  var v = {};
+  for(var k in rec) v[k] = rec[k];
+  v.raisedAt = fmtDateTimeLocal(rec.raisedAt);
+  return v;
+}
 
 /* 確定してよい状態か。理由をつけて返す */
 function decisionCanDecide(dec){
@@ -7082,7 +7092,7 @@ action('decEdit', function(ds){
       { key:'reason', label:'そう決めた理由（記録に残す）', type:'textarea', rows:2, full:true },
       { key:'review', label:'この判断を見直す日', type:'date' }
     ]),
-    value:rec,
+    value:withLocalRaisedAt(rec),
     submitLabel:'保存',
     onSubmit:function(v){
       for(var k in v) rec[k] = v[k];
@@ -7185,7 +7195,7 @@ action('venEdit', function(ds){
       { key:'reviewNote', label:'審査で出た意見', type:'textarea', rows:2, full:true },
       { key:'result', label:'結果・実績', type:'textarea', rows:2, full:true }
     ]),
-    value:rec, submitLabel:'保存',
+    value:withLocalRaisedAt(rec), submitLabel:'保存',
     onSubmit:function(v){
       for(var k in v) rec[k] = v[k];
       if(rec.raisedAt) rec.raisedAt = new Date(rec.raisedAt).toISOString();
@@ -7652,7 +7662,7 @@ function renderCapital(){
     '</div>';
 
   h += '<div class="grid c4" style="margin-bottom:16px;">'+
-    tile('対象の期', period||'<small>未登録</small>',
+    tile('対象の期', period ? esc(period) : '<small>未登録</small>',
          period ? '利益 '+yen(sum.profit)+'円'
                 : '<div class="foot">'+btn('この期の数字を入れる','capQuick',{},'primary','plus')+'</div>',
          'accent','calendar')+
@@ -8613,6 +8623,11 @@ function folderLink(){ SYNC.cfg.mode = 'folder'; syncSaveCfg(); }
 function folderFirstSync(){
   return folderEnsure().then(function(ok){
     if(!ok) return false;
+    /* どちらを残すかを選び終わるまでは、共有フォルダのモードと自動同期をいったん外す。
+       すでに共有中のまま接続し直すと、選ばずに閉じただけで、そのあとの自動同期が
+       チーム全員分のデータを黙って上書きしてしまうため。 */
+    if(SYNC.cfg.mode === 'folder'){ SYNC.cfg.mode = 'local'; syncSaveCfg(); }
+    if(SYNC.timer){ clearInterval(SYNC.timer); SYNC.timer = null; }
     return folderRead().then(function(remote){
       /* 共有フォルダが空 → こちらの内容を最初のデータとして置く */
       if(!remote || !remote.data){
@@ -8638,7 +8653,14 @@ function folderFirstSync(){
           foot:'<button type="button" class="btn danger" id="fsPush">自分の内容で上書きする</button>'+
                '<button type="button" class="btn primary" id="fsPull">共有フォルダの内容を取り込む（推奨）</button>',
           onMount:function(root){
-            root.beforeClose = function(){ res(false); return true; };
+            root.beforeClose = function(){
+              SYNC.state = 'needPermission';
+              SYNC.message = 'どちらを残すかを選んでいないため、共有は止めたままです。'+
+                             'もう一度「共有フォルダに接続」を押してください。';
+              syncPaint(); render();
+              toast(SYNC.message,'bad');
+              res(false); return true;
+            };
             root.querySelector('#fsPull').addEventListener('click', function(){
               closeModal();
               syncApply(remote, '共有フォルダ');
@@ -8777,6 +8799,67 @@ function serverPush(force){
     });
 }
 
+/* 初回の接続。共有サーバーにすでにチームのデータがあるときは、
+   どちらを残すかを必ず選んでもらう（黙って上書きしない）。
+   選び終わるまで共有サーバーのモードには切り替えない。 */
+function serverLink(){ SYNC.cfg.mode = 'server'; syncSaveCfg(); }
+
+function serverFirstSync(){
+  SYNC.state='syncing'; syncPaint();
+  return fetch(serverUrl('/api/meta'), { headers:serverHeaders(), cache:'no-store' })
+    .then(function(r){
+      if(r.status===401) throw new Error('合言葉（チームキー）が違います');
+      if(!r.ok) throw new Error('サーバー応答 '+r.status);
+      return r.json();
+    })
+    .then(function(meta){
+      /* 共有サーバーが空 → こちらの内容を最初のデータとして送る */
+      if(!meta || meta.empty){
+        SYNC.rev = (meta && meta.rev) || 0;
+        serverLink();
+        return serverPush(true).then(function(){ syncStartTimer(); return 'push'; });
+      }
+      return new Promise(function(res){
+        openModal({
+          title:'共有サーバーには、すでにデータがあります',
+          body:'<div style="font-size:13.5px;line-height:1.8;">'+
+               '共有サーバーの更新：'+esc(fmtJp(meta.updatedAt))+
+               (meta.updatedBy?'（'+esc(meta.updatedBy)+'）':'')+'<br>'+
+               'このパソコンの更新：'+esc(fmtJp(DB.data.meta.updatedAt))+'<br><br>'+
+               'どちらの内容を残しますか。<br>'+
+               '<b>取り込む</b>を選ぶと、このパソコンの内容が共有サーバーの内容に置き換わります。<br>'+
+               '<b>自分の内容で上書きする</b>を選ぶと、共有サーバーにあるチーム全員分のデータが消えます。'+
+               '</div>',
+          foot:'<button type="button" class="btn danger" id="svPush">自分の内容で上書きする</button>'+
+               '<button type="button" class="btn primary" id="svPull">共有サーバーの内容を取り込む（推奨）</button>',
+          onMount:function(root){
+            /* 選ばずに閉じたときは、共有をまだ始めない（このパソコンのみのまま） */
+            root.beforeClose = function(){
+              SYNC.state='idle'; SYNC.message=''; syncPaint();
+              res(false); return true;
+            };
+            root.querySelector('#svPull').addEventListener('click', function(){
+              closeModal();
+              serverLink();
+              serverPull(false).then(function(){ syncStartTimer(); render(); res('pull'); });
+            });
+            root.querySelector('#svPush').addEventListener('click', function(){
+              closeModal();
+              serverLink();
+              SYNC.rev = meta.rev || 0;
+              serverPush(true).then(function(){ syncStartTimer(); render(); res('push'); });
+            });
+          }
+        });
+      });
+    })
+    .catch(function(e){
+      SYNC.state='error'; SYNC.message='共有サーバーに接続できません：'+(e&&e.message||e);
+      syncPaint(); toast(SYNC.message,'bad');
+      return false;
+    });
+}
+
 function syncConflictDialog(remote){
   openModal({
     title:'他の人が先に更新しています',
@@ -8890,17 +8973,10 @@ action('syncServerSave', function(){
   SYNC.cfg.teamKey   = key ? String(key.value).trim() : '';
   if(nm) SYNC.cfg.userName = String(nm.value).trim();
   if(!SYNC.cfg.serverUrl){ toast('共有サーバーのアドレスを入力してください','bad'); return; }
-  SYNC.cfg.mode = 'server';
   syncSaveCfg();
   toast('接続しています…','');
-  serverPull(false).then(function(ok){
-    if(SYNC.state!=='error'){
-      /* サーバーが空のときは、こちらの内容を最初のデータとして送る */
-      if(!ok) serverPush(true);
-      syncStartTimer();
-    }
-    render();
-  });
+  /* 共有フォルダと同じく、手元の内容が消える前に必ず選んでもらう */
+  serverFirstSync().then(function(){ render(); });
 });
 
 action('syncUserSave', function(){
