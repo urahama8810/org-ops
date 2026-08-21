@@ -5,7 +5,10 @@
 var oooSel = { month: monthStr() };
 
 function prevMonth(m){
-  var y = num(m.split('-')[0]), mo = num(m.split('-')[1]);
+  /* 記録が壊れていて月の形でないことがあるので、その場合は今月の前月を返す */
+  var s = String(m || '');
+  if(!/^\d{4}-\d{2}$/.test(s)) s = monthStr();
+  var y = num(s.split('-')[0]), mo = num(s.split('-')[1]);
   mo--; if(mo === 0){ mo = 12; y--; }
   return y+'-'+('0'+mo).slice(-2);
 }
@@ -155,7 +158,11 @@ function openOooForm(rec, empId){
     employeeId: empId||'', managerId: e?e.manager:'', month:month, date:todayStr(),
     kpiReview:'', wins:'', issues:'', feedback:'', support:'', promiseText:[], promiseDue:'', nextDate:''
   };
-  if(rec) val.promiseText = (rec.promises||[]).map(function(p){ return p.text; });
+  if(rec){
+    val.promiseText = (rec.promises||[]).map(function(p){ return p.text; });
+    /* 期限は約束の中に入っている。空欄で開くと、保存したときに全部消えてしまう */
+    val.promiseDue = ((rec.promises||[]).filter(function(p){ return p && p.due; })[0]||{}).due || '';
+  }
 
   /* 前回の約束を冒頭に表示 */
   var intro = '';
@@ -177,9 +184,14 @@ function openOooForm(rec, empId){
     title: rec ? '1on1記録の編集' : '1on1を記録', wide:true, intro:intro,
     fields: oooFields(val.employeeId, month), value: val,
     onSubmit:function(v){
+      var openedDue = val.promiseDue;   /* 開いたときに期限欄へ入っていた値 */
       var promises = lines(v.promiseText).map(function(t, i){
         var old = rec && rec.promises && rec.promises[i];
-        return { text:t, due:v.promiseDue, done: old && old.text===t ? old.done : false };
+        var same = old && old.text === t;
+        /* 期限欄に触っていないなら、約束ごとの期限をそのまま残す */
+        var keep = same && v.promiseDue === openedDue;
+        return { text:t, due: keep ? (old.due || '') : v.promiseDue,
+                 done: same ? old.done : false };
       });
       var obj = {
         id: rec ? rec.id : uid('ooo'),
@@ -187,7 +199,9 @@ function openOooForm(rec, empId){
         kpiReview:v.kpiReview, wins:v.wins, issues:v.issues, feedback:v.feedback, support:v.support,
         promises:promises, nextDate:v.nextDate
       };
-      if(rec) DB.data.oneOnOnes[DB.data.oneOnOnes.indexOf(rec)] = obj;
+      if(rec){
+        if(!replaceById(DB.data.oneOnOnes, rec.id, obj)){ toast(RECORD_GONE,'bad'); return false; }
+      }
       else DB.data.oneOnOnes.push(obj);
       DB.save(); render(); toast('記録しました','ok');
     }

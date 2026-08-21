@@ -32,7 +32,7 @@ function goalStateCheck(){
     d.kpiWeeks.length >= 4 && d.oneOnOnes.length >= 1,
     d.scorecards.length >= 6 && evs.length > 0 && evs.some(function(e){ return e.stage==='final'||e.stage==='explained'; }),
     d.grades.length === 5 && d.employees.length > 0 && d.employees.every(function(e){ return !!e.grade; }),
-    d.scorecards.length > 0 && d.scorecards.every(function(s){ return (s.reports||'').trim(); })
+    d.scorecards.length > 0 && d.scorecards.every(function(s){ return String(s.reports||'').trim(); })
   ];
 }
 

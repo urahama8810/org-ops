@@ -1371,17 +1371,20 @@ function emptyData(){
 
 var DB = {
   data:emptyData(),
+  /* データを丸ごと入れ替えるたびに1増える番号。
+     開いたままのふきだしが、入れ替わる前の記録を掴んだままでないかを見分けるために使う。 */
+  gen:0,
   load:function(){
     try{
       var raw = localStorage.getItem(STORAGE_KEY);
       if(raw){
         var parsed = JSON.parse(raw);
-        this.data = mergeDefaults(parsed, emptyData());
+        this.data = normalizeData(mergeDefaults(parsed, emptyData())); this.gen++;
       }
     }catch(e){
       console.error('読み込みに失敗しました', e);
       toast('保存データの読み込みに失敗しました。初期状態で開始します。','bad');
-      this.data = emptyData();
+      this.data = emptyData(); this.gen++;
     }
     return this.data;
   },
@@ -1396,10 +1399,70 @@ var DB = {
     /* 共有モードのときは、共有フォルダ／共有サーバーへも反映する */
     if(typeof syncAfterSave === 'function') syncAfterSave();
   },
-  reset:function(){ this.data = emptyData(); this.save(); }
+  reset:function(){ this.data = emptyData(); this.gen++; this.save(); }
 };
 
 /* 保存済みデータに新しい項目が増えていても壊れないように補完する */
+/* 読み込んだデータの形を整える。
+   共有先で書き換えられたり、バックアップを手で直したりして、
+   配列であるべきところが空や別の型になっていても、画面が落ちないようにする。
+   （mergeDefaults は入れ物の有無しか見ないので、中身はここで整える） */
+function normalizeData(d){
+  if(!d || typeof d !== 'object') return d;
+  function arr(o, k){ if(o && !Array.isArray(o[k])) o[k] = []; }
+  arr(d, 'employees'); arr(d, 'goals'); arr(d, 'scorecards'); arr(d, 'kpiWeeks');
+  arr(d, 'oneOnOnes'); arr(d, 'evaluations'); arr(d, 'reports'); arr(d, 'incidents');
+  arr(d, 'exceptions'); arr(d, 'improvementPlans'); arr(d, 'grades');
+  arr(d, 'decisions'); arr(d, 'ventures'); arr(d, 'delegations'); arr(d, 'partners');
+
+  d.kpiWeeks.forEach(function(w){ if(w) arr(w, 'rows'); });
+  d.oneOnOnes.forEach(function(o){ if(o) arr(o, 'promises'); });
+  d.delegations.forEach(function(x){ if(x) arr(x, 'checks'); });
+  d.improvementPlans.forEach(function(p){ if(p){ arr(p, 'weeklyChecks'); arr(p, 'items'); } });
+  d.employees.forEach(function(e){ if(e) arr(e, 'gradeHistory'); });
+  d.evaluations.forEach(function(v){
+    if(!v) return;
+    if(!v.scores || typeof v.scores !== 'object') v.scores = {};
+    if(!v.selfScores || typeof v.selfScores !== 'object') v.selfScores = {};
+    if(!v.comments || typeof v.comments !== 'object') v.comments = {};
+    if(!v.selfComments || typeof v.selfComments !== 'object') v.selfComments = {};
+  });
+  if(!d.capital || typeof d.capital !== 'object') d.capital = { rule:{}, periods:[], spends:[] };
+  arr(d.capital, 'periods'); arr(d.capital, 'spends');
+  if(!d.capital.rule || typeof d.capital.rule !== 'object') d.capital.rule = {};
+  if(!d.diagnosis || typeof d.diagnosis !== 'object') d.diagnosis = { answers:{}, history:[] };
+  arr(d.diagnosis, 'history');
+  if(!d.diagnosis.answers || typeof d.diagnosis.answers !== 'object') d.diagnosis.answers = {};
+  if(!d.settings || typeof d.settings !== 'object') d.settings = {};
+  if(!d.meta || typeof d.meta !== 'object') d.meta = { version:APP_VERSION, updatedAt:nowIso() };
+  if(!d.planChecks || typeof d.planChecks !== 'object') d.planChecks = {};
+  if(!d.firstSteps || typeof d.firstSteps !== 'object') d.firstSteps = {};
+  if(!d.projectRoles || typeof d.projectRoles !== 'object') d.projectRoles = {};
+
+  /* id が無い記録があると、その行の入力・編集・削除が黙って効かなくなる。
+     （目印が見つからず、画面上は入ったように見えて、次の描き直しで元に戻る）
+     手で直したバックアップや古い形式の取り込みで起こりうるので、ここで補っておく。 */
+  function fixIds(a, pf){ (a||[]).forEach(function(r){ if(r && !r.id) r.id = uid(pf); }); }
+  fixIds(d.employees,'emp'); fixIds(d.goals,'goal'); fixIds(d.scorecards,'sc');
+  fixIds(d.kpiWeeks,'wk'); d.kpiWeeks.forEach(function(w){ if(w) fixIds(w.rows,'row'); });
+  fixIds(d.oneOnOnes,'ooo'); fixIds(d.evaluations,'ev'); fixIds(d.reports,'rep');
+  fixIds(d.incidents,'inc'); fixIds(d.exceptions,'exc'); fixIds(d.improvementPlans,'imp');
+  fixIds(d.decisions,'dec'); fixIds(d.ventures,'ven'); fixIds(d.delegations,'dlg');
+  fixIds(d.partners,'par'); fixIds(d.capital.periods,'cp'); fixIds(d.capital.spends,'sp');
+
+  /* settings の文字列項目が、取り込んだJSONで数値などになっていても落ちないようにする。
+     ただし null を "null" という文字にしてしまうと、未設定の扱いが壊れて
+     見出しに「null」と出てしまうので、null と undefined はそのままにする。 */
+  ['companyName','ceoName','projectLead','hrOwner','externalAdvisor','startDate','currentPeriod']
+    .forEach(function(k){
+      var v = d.settings[k];
+      if(v === undefined || v === null || typeof v === 'string') return;
+      /* 数値・真偽は文字にする。配列やオブジェクトは名前として出せないので空にする */
+      d.settings[k] = (typeof v === 'number' || typeof v === 'boolean') ? String(v) : '';
+    });
+  return d;
+}
+
 function mergeDefaults(saved, def){
   if(saved === null || saved === undefined) return def;
   if(Array.isArray(def)) return Array.isArray(saved) ? saved : def;
@@ -1418,11 +1481,18 @@ function uid(prefix){
   return (prefix||'id') + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7);
 }
 function nowIso(){ return new Date().toISOString(); }
+/* 日時として読めない値のことがあるので、読めなければ空にする（保存が落ちないように） */
+function toIso(v){
+  if(!v) return '';
+  var d = new Date(v);
+  return isNaN(d.getTime()) ? '' : d.toISOString();
+}
 function todayStr(){ return fmtDate(new Date()); }
 function fmtDate(d){
   if(!d) return '';
-  if(typeof d === 'string') d = new Date(d);
-  if(isNaN(d.getTime())) return '';
+  /* 記録が壊れていて日付でないことがあるので、日付に直せないものは空にする */
+  if(!(d instanceof Date)) d = new Date(d);
+  if(!d || typeof d.getTime !== 'function' || isNaN(d.getTime())) return '';
   var m = ('0'+(d.getMonth()+1)).slice(-2), day = ('0'+d.getDate()).slice(-2);
   return d.getFullYear()+'-'+m+'-'+day;
 }
@@ -1447,12 +1517,16 @@ function shortDate(x){
   if(isNaN(d.getTime())) return String(x).slice(5);
   return (d.getMonth()+1)+'/'+d.getDate();
 }
+/* 日付として読めない値が入っていることがあるので、その場合は「今日」で数える
+   （'NaN-aN' のような壊れた文字が画面に出るのを防ぐ） */
 function monthStr(d){
   d = d ? new Date(d) : new Date();
+  if(isNaN(d.getTime())) d = new Date();
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
 }
 function quarterOf(dstr){
   var d = new Date(dstr||todayStr());
+  if(isNaN(d.getTime())) d = new Date();
   return d.getFullYear()+'-Q'+(Math.floor(d.getMonth()/3)+1);
 }
 function daysBetween(a,b){
@@ -1480,10 +1554,22 @@ function lines(s){
   return String(s||'').split('\n').map(function(x){return x.trim();}).filter(function(x){return x!=='';});
 }
 function pct(n){ return (isFinite(n)?Math.round(n):0)+'%'; }
-function clamp(n,a,b){ return Math.max(a,Math.min(b,n)); }
+/* 数でない値が来ても、範囲の中の数を必ず返す（画面に NaN を出さないため） */
+function clamp(n,a,b){ return Math.max(num(a,0), Math.min(num(b,0), num(n,0))); }
 function num(v,def){ var n = parseFloat(v); return isFinite(n) ? n : (def===undefined?0:def); }
 /* 一覧からIDで1件を取り出す。見つからない場合と、一覧そのものがない場合は null を返す */
 function byId(arr,id){ if(!arr || !arr.length) return null; for(var i=0;i<arr.length;i++) if(arr[i] && arr[i].id===id) return arr[i]; return null; }
+/* 記録を id で引き直して差し替える。
+   ふきだしを開いている間に共有先からデータが届くと、掴んでいた記録は
+   「捨てられた古いもの」になる。そのまま位置で差し替えると入力が消えてしまうので、
+   必ず id で引き直す。見つからなければ false（他の人が消した等）。 */
+function replaceById(arr, id, obj){
+  if(!arr || !arr.length) return false;
+  for(var i=0;i<arr.length;i++){ if(arr[i] && arr[i].id === id){ arr[i] = obj; return true; } }
+  return false;
+}
+var RECORD_GONE = 'この記録は見つかりませんでした（ほかの人が削除した可能性があります）。入力はこのまま残してありますので、閉じる前に控えてください。';
+
 function sortBy(arr,fn){ return arr.slice().sort(function(a,b){ var x=fn(a),y=fn(b); return x<y?-1:x>y?1:0; }); }
 function uniq(arr){ var o=[],s={}; arr.forEach(function(v){ if(v && !s[v]){s[v]=1;o.push(v);} }); return o; }
 
@@ -1764,6 +1850,7 @@ function openModal(opts){
     '</div>';
   document.body.appendChild(back);
   document.body.style.overflow = 'hidden';
+  back._gen = DB.gen;               /* 開いた時点のデータの世代を控える */
   _modalStack.push(back);
   back.addEventListener('click', function(e){
     /* アイコン(svg)が e.target になることがあるので、closest で親のボタンまでたどる */
@@ -1773,6 +1860,18 @@ function openModal(opts){
   if(opts.onMount) opts.onMount(back);
   return back;
 }
+
+/* ふきだしを開いたあとに、共有先からの取り込みやバックアップの復元で
+   データが丸ごと入れ替わることがある。そのとき、このふきだしが掴んでいる記録は
+   新しいデータのどこにも繋がっておらず、書き込んでも保存されない。
+   「保存しました」と出るのに何も残らないのを防ぐため、書き込む前に必ず確かめる。 */
+function modalIsStale(el){
+  var back = (el && el.closest) ? el.closest('.modal-back') : null;
+  if(!back || back._gen === undefined) return false;
+  return back._gen !== DB.gen;
+}
+var STALE_MSG = 'ほかの端末から新しいデータが届いたため、開いていた内容は古くなりました。'+
+                '保存しても残らないので、いったん閉じて開き直してください。';
 
 /* 閉じてよいかを確かめてから閉じる。
    入力途中のフォームでは、確認をはさむ（back.beforeClose が false を返す） */
@@ -1800,6 +1899,7 @@ function confirmDialog(title, message, onOk, okLabel){
          '<button class="btn danger" id="cfmOk">'+esc(okLabel||'実行する')+'</button>',
     onMount:function(root){
       root.querySelector('#cfmOk').addEventListener('click', function(){
+        if(modalIsStale(root)){ toast(STALE_MSG,'bad'); closeAllModals(); try{ render(); }catch(e){} return; }
         closeModal(); onOk();
       });
     }
@@ -1827,6 +1927,13 @@ function fieldHtml(f, val){
     inner = '<textarea name="'+name+'" '+(f.required?'required':'')+' rows="'+(f.rows||3)+'" placeholder="'+esc(f.placeholder||'')+'">'+esc(tv)+'</textarea>';
   }else if(f.type === 'select'){
     inner = '<select name="'+name+'" '+(f.required?'required':'')+'>';
+    /* 保存されている値が選択肢にないとき（担当者を削除した・職種名を変えた・期を消した等）、
+       黙って消したり先頭の選択肢に化けたりしないよう、その値を選択肢として残す */
+    var _has = (v === '' || v === undefined || v === null);
+    (f.options||[]).forEach(function(o){
+      if(String((typeof o === 'object') ? o.value : o) === String(v)) _has = true;
+    });
+    if(!_has) inner += '<option value="'+esc(v)+'" selected>'+esc(v)+'（選択肢にありません）</option>';
     (f.options||[]).forEach(function(o){
       var ov = (typeof o === 'object') ? o.value : o;
       var ol = (typeof o === 'object') ? o.label : o;
@@ -1874,6 +1981,23 @@ function readForm(root, fields){
   return out;
 }
 
+/* 数字として読めない入力（カンマ区切り・全角数字・単位つきなど）が入っている欄の名前を返す。
+   数字の入力欄は、そうした入力を「空」として返す（画面には文字が見えたまま）。
+   これを見ないと空欄と区別できず、入力した値が黙って消えてしまう。 */
+function badNumFields(root, list){
+  var bad = [];
+  list.forEach(function(f){
+    if(f.type !== 'number') return;
+    var el = root.querySelector('[name="f_'+f.key+'"]');
+    if(el && el.validity && el.validity.badInput) bad.push(f.label);
+  });
+  return bad;
+}
+function badNumToast(bad){
+  toast('数字として読めない入力があります：'+bad.join('、')+
+        '（カンマ・全角数字・単位は使えません。半角数字だけで入れてください）', 'bad');
+}
+
 /* 入力フォームをモーダルで開く */
 function openForm(opts){
   var fields = opts.fields;
@@ -1887,6 +2011,21 @@ function openForm(opts){
     onMount:function(root){
       var form = root.querySelector('#mForm');
       function submit(){
+        /* 開いている間にデータが入れ替わっていたら、書き込む前に伝える
+           （必須の指摘より先。埋めても保存できない状態なので） */
+        if(modalIsStale(form)){ toast(STALE_MSG, 'bad'); return; }
+        /* 数字として読めない入力の検査。必須チェックより先に見る
+           （画面に数字が見えているのに「未入力」と出ると、理由が分からないため） */
+        var badNum = badNumFields(form, fields);
+        if(badNum.length){
+          badNumToast(badNum);
+          for(var bi=0; bi<fields.length; bi++){
+            if(fields[bi].type !== 'number') continue;
+            var be = form.querySelector('[name="f_'+fields[bi].key+'"]');
+            if(be && be.validity && be.validity.badInput){ be.focus(); break; }
+          }
+          return;
+        }
         /* 必須チェック */
         var miss = [];
         fields.forEach(function(f){
@@ -2036,6 +2175,13 @@ function printHtml(title, bodyHtml){
    共有で使っていると、他の人が消した記録のボタンが画面に残っていることがある。
    そのまま押しても何も起きないと戸惑うので、理由を伝えて画面を作り直す。 */
 function runAction(fn, name, ds, el, ev){
+  /* 古くなったふきだしの中のボタンは、押しても保存されない。作り直してもらう */
+  if(modalIsStale(el)){
+    toast(STALE_MSG, 'bad');
+    closeAllModals();
+    try{ render(); }catch(e2){}
+    return;
+  }
   try{
     fn(ds, el, ev);
   }catch(err){
@@ -2074,15 +2220,15 @@ document.addEventListener('change', function(e){
    それ以外は、落ち着いてから埋めればよい項目。 */
 var LEDGER_CHECKS = [
   { key:'manager',   label:'直属の上司',      core:true, test:function(e){ return !!e.manager || e.isTop; } },
-  { key:'role',      label:'役割',            core:true, test:function(e){ return !!(e.roleTitle||'').trim(); } },
-  { key:'output',    label:'成果物',          core:true, test:function(e){ return !!(e.deliverables||'').trim(); } },
+  { key:'role',      label:'役割',            core:true, test:function(e){ return !!String(e.roleTitle||'').trim(); } },
+  { key:'output',    label:'成果物',          core:true, test:function(e){ return !!String(e.deliverables||'').trim(); } },
   { key:'kpi',       label:'KPI',             core:true, test:function(e){ return lines(e.kpis).length >= 1; } },
-  { key:'approval',  label:'承認が必要なこと',core:true, test:function(e){ return !!(e.approvals||'').trim(); } },
+  { key:'approval',  label:'承認が必要なこと',core:true, test:function(e){ return !!String(e.approvals||'').trim(); } },
   { key:'duties',    label:'主な仕事',        test:function(e){ return lines(e.mainDuties).length >= 3; } },
-  { key:'target',    label:'目標値',          test:function(e){ return !!(e.kpiTarget||'').trim(); } },
-  { key:'dataSrc',   label:'数字の出どころ',  test:function(e){ return !!(e.dataSource||'').trim(); } },
-  { key:'authority', label:'決めてよい範囲',  test:function(e){ return !!(e.authority||'').trim(); } },
-  { key:'handover',  label:'資料の保存場所',  test:function(e){ return !!(e.handover||'').trim(); } }
+  { key:'target',    label:'目標値',          test:function(e){ return !!String(e.kpiTarget||'').trim(); } },
+  { key:'dataSrc',   label:'数字の出どころ',  test:function(e){ return !!String(e.dataSource||'').trim(); } },
+  { key:'authority', label:'決めてよい範囲',  test:function(e){ return !!String(e.authority||'').trim(); } },
+  { key:'handover',  label:'資料の保存場所',  test:function(e){ return !!String(e.handover||'').trim(); } }
 ];
 
 /* 土台の5項目が埋まっているか */
@@ -2174,8 +2320,9 @@ function latestKpiWeek(){
 }
 function kpiWeekSummary(w){
   if(!w) return { ok:0, watch:0, ng:0, none:0, total:0, unresolved:0 };
-  var s = { ok:0, watch:0, ng:0, none:0, total:w.rows.length, unresolved:0 };
-  w.rows.forEach(function(r){
+  var rows = w.rows || [];                       /* 記録が壊れていても落ちないようにする */
+  var s = { ok:0, watch:0, ng:0, none:0, total:rows.length, unresolved:0 };
+  rows.forEach(function(r){
     var st = kpiRowStatus(r);
     s[st]++;
     if((st==='ng'||st==='watch') && (!String(r.action||'').trim() || !String(r.owner||'').trim() || !String(r.due||'').trim())) s.unresolved++;
@@ -2198,7 +2345,9 @@ function reportDeadlineStatus(rep){
   if(!rep.knownAt || !rep.reportedAt) return { cls:'warn', label:'未報告' };
   var h = hoursBetween(rep.knownAt, rep.reportedAt);
   if(h <= rule.hours) return { cls:'ok', label:'期限内（'+Math.max(0,Math.round(h*10)/10)+'時間）' };
-  return { cls:'bad', label:'遅延（'+Math.round(h)+'時間）' };
+  /* 24.4時間を四捨五入して「遅延（24時間）」と出ると、期限内と見分けがつかない。
+     少しでも超えていたら、切り上げて必ず期限より大きい数字にする */
+  return { cls:'bad', label:'遅延（'+Math.max(rule.hours+1, Math.ceil(h))+'時間）' };
 }
 function reportCompliance(){
   var reps = DB.data.reports;
@@ -2219,7 +2368,8 @@ function evalScore(ev){
   var items = evalItemsFor(ev.type);
   var sum = 0, weight = 0;
   items.forEach(function(it){
-    var v = num((ev.scores||{})[it.key], 0);
+    /* 点数は1〜4。記録が壊れていても、範囲の外の値で平均が壊れないようにする */
+    var v = clamp(num((ev.scores||{})[it.key], 0), 0, 4);
     if(v > 0){ sum += v*it.weight; weight += it.weight; }
   });
   if(!weight) return null;
@@ -2229,14 +2379,16 @@ function evalSelfScore(ev){
   var items = evalItemsFor(ev.type);
   var sum = 0, weight = 0;
   items.forEach(function(it){
-    var v = num((ev.selfScores||{})[it.key], 0);
+    var v = clamp(num((ev.selfScores||{})[it.key], 0), 0, 4);
     if(v > 0){ sum += v*it.weight; weight += it.weight; }
   });
   if(!weight) return null;
   return Math.round(sum/weight*100)/100;
 }
 function evalGradeLabel(score){
-  if(score === null) return { label:'未評価', cls:'neutral' };
+  /* 点が付いていない・数として読めない場合は「未評価」。
+     ここを漏らすと、まだ評価していない人が「1 未達」と表示されてしまう */
+  if(score === null || score === undefined || !isFinite(score)) return { label:'未評価', cls:'neutral' };
   if(score >= 3.5) return { label:'4 期待を上回る', cls:'ok' };
   if(score >= 2.75) return { label:'3 期待どおり',   cls:'ok' };
   if(score >= 1.75) return { label:'2 一部未達',     cls:'warn' };
@@ -2270,7 +2422,9 @@ function hasActivePlan(empId){
 /* ---------- 目標の進捗 ---------- */
 function goalProgress(g){
   var base = num(g.baseline, 0), cur = num(g.current, 0), tgt = num(g.target90, 0);
-  if(g.target90 === '' || g.target90 === undefined) return null;
+  if(g.target90 === '' || g.target90 === undefined || g.target90 === null) return null;
+  /* 最新値が空なら「まだ測っていない」。0扱いにすると、下げる目標が100%達成に見えてしまう */
+  if(g.current  === '' || g.current  === undefined || g.current  === null) return null;
   if(tgt === base) return cur >= tgt ? 100 : 0;
   var p = (cur - base) / (tgt - base) * 100;
   return clamp(Math.round(p), 0, 100);
@@ -2298,7 +2452,7 @@ function buildAlerts(){
     add('bad','直属の上司が未記入の人が'+noMgr.length+'名',
         noMgr.map(function(e){return e.name;}).join('、')+' — 誰に報告し、誰に相談するかを決めます。','employees',noMgr.length);
 
-  var noOut = d.employees.filter(function(e){ return !(e.deliverables||'').trim(); });
+  var noOut = d.employees.filter(function(e){ return !String(e.deliverables||'').trim(); });
   if(noOut.length)
     add('warn','成果物が未記入の人が'+noOut.length+'名',
         '「何ができていれば、その仕事は終わりか」を決めて記入します。','employees',noOut.length);
@@ -2308,7 +2462,7 @@ function buildAlerts(){
     add('warn','KPIが未記入の人が'+noKpi.length+'名',
         '数字で成果を確かめられる指標を、1〜3個決めます。','employees',noKpi.length);
 
-  var noData = d.employees.filter(function(e){ return lines(e.kpis).length>0 && !(e.dataSource||'').trim(); });
+  var noData = d.employees.filter(function(e){ return lines(e.kpis).length>0 && !String(e.dataSource||'').trim(); });
   if(noData.length)
     add('warn','数字の出どころが未記入の人が'+noData.length+'名',
         'KPIはあるものの、どのファイルの数字を基準にするかが決まっていません。','employees',noData.length);
@@ -2318,7 +2472,7 @@ function buildAlerts(){
     add('warn','中身を知っているのが1人だけの仕事が'+onlyCeo.length+'件',
         '手順の記録と引き継ぎ先を決めておくと、休みや異動があっても仕事が止まりません。','employees',onlyCeo.length);
 
-  var noBackup = d.employees.filter(function(e){ return !(e.backup||'').trim(); });
+  var noBackup = d.employees.filter(function(e){ return !String(e.backup||'').trim(); });
   if(noBackup.length >= Math.max(1, Math.ceil(d.employees.length*0.5)) && d.employees.length)
     add('warn','引き継ぎ先が未記入の人が'+noBackup.length+'名',
         '休みや急な異動のときに、誰が引き継ぐかを決めておきます。','employees',noBackup.length);
@@ -2341,7 +2495,7 @@ function buildAlerts(){
   var goalNoOwner = d.goals.filter(function(g){ return !g.owner; });
   if(goalNoOwner.length)
     add('warn','責任者が未設定の目標が'+goalNoOwner.length+'件','目標には必ず1名の責任者を置きます。','goals',goalNoOwner.length);
-  var goalNoData = d.goals.filter(function(g){ return !(g.dataSource||'').trim(); });
+  var goalNoData = d.goals.filter(function(g){ return !String(g.dataSource||'').trim(); });
   if(goalNoData.length)
     add('warn','「正とするデータ」が未設定の目標が'+goalNoData.length+'件','どの数字を正とするかで揉めなくなります。','goals',goalNoData.length);
 
@@ -3017,7 +3171,7 @@ VIEWS.me = {
     /* --- あいさつと、今週の要点 --- */
     h += '<div class="me-head">'+
       '<div class="me-who">'+
-        '<div class="me-avatar">'+esc(m.name.charAt(0))+'</div>'+
+        '<div class="me-avatar">'+esc(String(m.name||'？').charAt(0))+'</div>'+
         '<div><div class="me-name">'+esc(m.name)+'</div>'+
         '<div class="small muted">'+esc([m.dept, m.roleTitle, m.grade].filter(Boolean).join('　/　'))+'</div></div>'+
       '</div>'+
@@ -3155,7 +3309,7 @@ function renderMePicker(){
     return '<div class="pick-dept">'+esc(dept)+'</div><div class="pick-grid">'+
       byDept[dept].map(function(e){
         return '<button class="pick-card" data-act="meSet" data-id="'+esc(e.id)+'">'+
-          '<span class="av">'+esc(e.name.charAt(0))+'</span>'+
+          '<span class="av">'+esc(String(e.name||'？').charAt(0))+'</span>'+
           '<span class="nm">'+esc(e.name)+'</span>'+
           '<span class="rl">'+esc(e.roleTitle||e.jobType||'')+'</span></button>';
       }).join('')+'</div>';
@@ -3322,13 +3476,13 @@ VIEWS.employees = {
 
     /* 重点確認リスト */
     var risk = d.employees.filter(function(e){
-      return (!e.manager && !e.isTop) || !(e.deliverables||'').trim() || lines(e.kpis).length===0 || e.ceoOnlyKnows;
+      return (!e.manager && !e.isTop) || !String(e.deliverables||'').trim() || lines(e.kpis).length===0 || e.ceoOnlyKnows;
     });
     if(risk.length){
       h += card('重点確認が必要な社員（'+risk.length+'名）', tableHtml([
         {label:'氏名', render:function(e){ return '<b>'+esc(e.name)+'</b><div class="small muted">'+esc(e.dept||'')+'</div>'; }},
         {label:'直属上司が曖昧', render:function(e){ return (!e.manager&&!e.isTop) ? badge('該当','bad') : '<span class="muted">—</span>'; }},
-        {label:'成果物が未定義', render:function(e){ return !(e.deliverables||'').trim() ? badge('該当','bad') : '<span class="muted">—</span>'; }},
+        {label:'成果物が未定義', render:function(e){ return !String(e.deliverables||'').trim() ? badge('該当','bad') : '<span class="muted">—</span>'; }},
         {label:'数値で確認できない', render:function(e){ return lines(e.kpis).length===0 ? badge('該当','bad') : '<span class="muted">—</span>'; }},
         {label:'知っている人が1人', render:function(e){ return e.ceoOnlyKnows ? badge('該当','warn') : '<span class="muted">—</span>'; }},
         {label:'', cls:'actions', render:function(e){ return btn('編集','empEdit',{id:e.id}); }}
@@ -3525,7 +3679,7 @@ VIEWS.org = {
     h += card('組織図（直属の上司でつないだもの）', tree, {icon:'sitemap'});
 
     /* 権限一覧 */
-    var rows = sortBy(d.employees.filter(function(e){ return (e.authority||'').trim() || (e.approvals||'').trim(); }),
+    var rows = sortBy(d.employees.filter(function(e){ return String(e.authority||'').trim() || String(e.approvals||'').trim(); }),
                       function(e){ return (e.dept||'')+e.name; });
     h += card('権限・承認の一覧', tableHtml([
       {label:'氏名', width:'130px', render:function(e){ return '<b>'+esc(e.name)+'</b><div class="small muted">'+esc(e.dept||'')+'</div>'; }},
@@ -3689,7 +3843,8 @@ action('goalEdit', function(ds){
     title:'目標の編集', wide:true, fields:fields, value:g,
     onSubmit:function(v){
       v.id = g.id;
-      DB.data.goals[DB.data.goals.indexOf(g)] = v; DB.save(); render(); toast('保存しました','ok');
+      if(!replaceById(DB.data.goals, g.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok');
     }
   });
 });
@@ -3800,7 +3955,7 @@ VIEWS.scorecards = {
 
     d.scorecards.forEach(function(s){
       var members = d.employees.filter(function(e){ return e.jobType === s.jobType; });
-      var filled = ['purpose','authority','approvals','reports','behaviors','gradeDiff'].filter(function(k){ return (s[k]||'').trim(); }).length
+      var filled = ['purpose','authority','approvals','reports','behaviors','gradeDiff'].filter(function(k){ return String(s[k]||'').trim(); }).length
                  + (lines(s.responsibilities).length?1:0) + (lines(s.kpis).length?1:0);
       var rate = Math.round(filled/8*100);
       var body = '<div class="grid c2">'+
@@ -3846,7 +4001,8 @@ action('scEdit', function(ds){
   openForm({ title:'役割表：'+s.jobType, wide:true, fields:SCORECARD_FIELDS, value:s,
     onSubmit:function(v){
       v.id = s.id;
-      DB.data.scorecards[DB.data.scorecards.indexOf(s)] = v; DB.save(); render(); toast('保存しました','ok');
+      if(!replaceById(DB.data.scorecards, s.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok');
     }
   });
 });
@@ -3982,7 +4138,7 @@ VIEWS.kpi = {
       { label:'目標', cls:'num', width:'90px', render:function(r){ return esc(r.target); } },
       { label:'実績', cls:'num', width:'110px', render:function(r){
           return '<input type="number" step="any" value="'+esc(r.actual)+'" data-change="kpiActual" '+
-                 'data-w="'+w.id+'" data-r="'+r.id+'" style="text-align:right;padding:4px 6px;">'; } },
+                 'data-w="'+esc(w.id)+'" data-r="'+esc(r.id)+'" style="text-align:right;padding:4px 6px;">'; } },
       { label:'差', cls:'num', width:'70px', render:function(r){
           var g = kpiGap(r); if(g==='') return '<span class="muted">—</span>';
           var st = kpiRowStatus(r);
@@ -4127,6 +4283,7 @@ action('kpiImport', function(ds){
     foot:'<button class="btn" data-modal-close>キャンセル</button><button class="btn primary" id="impOk">取り込む</button>',
     onMount:function(root){
       root.querySelector('#impOk').addEventListener('click', function(){
+        if(modalIsStale(root)){ toast(STALE_MSG,'bad'); closeAllModals(); try{ render(); }catch(e){} return; }
         var n = 0;
         root.querySelectorAll('input[type=checkbox]:checked').forEach(function(cb){
           var c = candidates[num(cb.dataset.i)];
@@ -4190,7 +4347,10 @@ action('kpiRowEdit', function(ds){
       '実績を入力すると、状態が自動判定されます。',
     onSubmit:function(v){
       v.id = r.id; v.doneAt = r.doneAt; v.goalId = r.goalId;
-      w.rows[w.rows.indexOf(r)] = v; DB.save(); render(); toast('保存しました','ok');
+      /* 週ごと引き直す（開いている間に共有先からデータが届いていることがある） */
+      var w2 = byId(DB.data.kpiWeeks, ds.w);
+      if(!w2 || !replaceById(w2.rows, r.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok');
     } });
 });
 action('kpiRowDel', function(ds){
@@ -4216,6 +4376,11 @@ action('kpiRowUndone', function(ds){
 action('kpiActual', function(ds, el){
   var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   var r = byId(w.rows, ds.r); if(!r) return;
+  if(el.validity && el.validity.badInput){
+    toast('数字として読めません。カンマ・全角数字・単位を使わず、半角数字だけで入れてください。','bad');
+    if(el.value === '') el.value = r.actual;   /* 消えたように見えないよう、元の数字を戻す */
+    return;
+  }
   r.actual = el.value === '' ? '' : num(el.value);
   DB.save();
   /* 画面全体を描き直すと入力中の欄から離れてしまうので、その行だけ書き換える */
@@ -4370,7 +4535,9 @@ action('kpiMeetRowEdit', function(ds){
     intro:'<b>その場で決めます。</b>対策・責任者・期限のいずれかが空欄のまま会議を終えないでください。',
     onSubmit:function(v){
       v.id = r.id; v.doneAt = r.doneAt; v.goalId = r.goalId;
-      w.rows[w.rows.indexOf(r)] = v; DB.save();
+      var w2 = byId(DB.data.kpiWeeks, ds.w);
+      if(!w2 || !replaceById(w2.rows, r.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save();
       if(top && top._redraw) top._redraw();
     }
   });
@@ -4423,7 +4590,10 @@ action('kpiPrint', function(ds){
 var oooSel = { month: monthStr() };
 
 function prevMonth(m){
-  var y = num(m.split('-')[0]), mo = num(m.split('-')[1]);
+  /* 記録が壊れていて月の形でないことがあるので、その場合は今月の前月を返す */
+  var s = String(m || '');
+  if(!/^\d{4}-\d{2}$/.test(s)) s = monthStr();
+  var y = num(s.split('-')[0]), mo = num(s.split('-')[1]);
   mo--; if(mo === 0){ mo = 12; y--; }
   return y+'-'+('0'+mo).slice(-2);
 }
@@ -4573,7 +4743,11 @@ function openOooForm(rec, empId){
     employeeId: empId||'', managerId: e?e.manager:'', month:month, date:todayStr(),
     kpiReview:'', wins:'', issues:'', feedback:'', support:'', promiseText:[], promiseDue:'', nextDate:''
   };
-  if(rec) val.promiseText = (rec.promises||[]).map(function(p){ return p.text; });
+  if(rec){
+    val.promiseText = (rec.promises||[]).map(function(p){ return p.text; });
+    /* 期限は約束の中に入っている。空欄で開くと、保存したときに全部消えてしまう */
+    val.promiseDue = ((rec.promises||[]).filter(function(p){ return p && p.due; })[0]||{}).due || '';
+  }
 
   /* 前回の約束を冒頭に表示 */
   var intro = '';
@@ -4595,9 +4769,14 @@ function openOooForm(rec, empId){
     title: rec ? '1on1記録の編集' : '1on1を記録', wide:true, intro:intro,
     fields: oooFields(val.employeeId, month), value: val,
     onSubmit:function(v){
+      var openedDue = val.promiseDue;   /* 開いたときに期限欄へ入っていた値 */
       var promises = lines(v.promiseText).map(function(t, i){
         var old = rec && rec.promises && rec.promises[i];
-        return { text:t, due:v.promiseDue, done: old && old.text===t ? old.done : false };
+        var same = old && old.text === t;
+        /* 期限欄に触っていないなら、約束ごとの期限をそのまま残す */
+        var keep = same && v.promiseDue === openedDue;
+        return { text:t, due: keep ? (old.due || '') : v.promiseDue,
+                 done: same ? old.done : false };
       });
       var obj = {
         id: rec ? rec.id : uid('ooo'),
@@ -4605,7 +4784,9 @@ function openOooForm(rec, empId){
         kpiReview:v.kpiReview, wins:v.wins, issues:v.issues, feedback:v.feedback, support:v.support,
         promises:promises, nextDate:v.nextDate
       };
-      if(rec) DB.data.oneOnOnes[DB.data.oneOnOnes.indexOf(rec)] = obj;
+      if(rec){
+        if(!replaceById(DB.data.oneOnOnes, rec.id, obj)){ toast(RECORD_GONE,'bad'); return false; }
+      }
       else DB.data.oneOnOnes.push(obj);
       DB.save(); render(); toast('記録しました','ok');
     }
@@ -5002,6 +5183,7 @@ action('evalOpen', function(ds){
          '<button class="btn primary" id="evSave">保存</button>',
     onMount:function(root){
       root.querySelector('#evSave').addEventListener('click', function(){
+        if(modalIsStale(root)){ toast(STALE_MSG,'bad'); return; }
         var f = root.querySelector('#evForm');
         items.forEach(function(it){
           var s = f.querySelector('input[name="self_'+it.key+'"]:checked');
@@ -5373,11 +5555,13 @@ VIEWS.reports = {
       return '<button type="button" class="tab '+(repTab===t.key?'active':'')+'" data-act="repTab" data-t="'+t.key+'">'+esc(t.label)+n+'</button>';
     }).join('')+'</div>';
 
-    if(repTab === 'rules')      h += renderRules();
-    if(repTab === 'log')        h += renderReportLog(false);
-    if(repTab === 'approval')   h += renderReportLog(true);
-    if(repTab === 'incidents')  h += renderIncidents();
-    if(repTab === 'exceptions') h += renderExceptions();
+    /* どのタブにも当たらないとき（保存された値が古い等）は、最初のタブを出す。
+       else でつなぐことで、中身が丸ごと空になるのを防ぐ */
+    if(repTab === 'log')             h += renderReportLog(false);
+    else if(repTab === 'approval')   h += renderReportLog(true);
+    else if(repTab === 'incidents')  h += renderIncidents();
+    else if(repTab === 'exceptions') h += renderExceptions();
+    else                             h += renderRules();
     return h;
   }
 };
@@ -5531,7 +5715,8 @@ action('repEdit', function(ds){
   openForm({ title:'記録の編集', wide:true, fields:reportFields(!!r.needApproval), value:r,
     onSubmit:function(v){
       v.id = r.id; v.needApproval = r.needApproval;
-      DB.data.reports[DB.data.reports.indexOf(r)] = v; DB.save(); render(); toast('保存しました','ok');
+      if(!replaceById(DB.data.reports, r.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok');
     } });
 });
 action('repApprove', function(ds){
@@ -5629,7 +5814,9 @@ action('incNew', function(){
 action('incEdit', function(ds){
   var i = byId(DB.data.incidents, ds.id); if(!i) return;
   openForm({ title:'問題処理の編集', wide:true, fields:incidentFields(), value:i,
-    onSubmit:function(v){ v.id=i.id; v.doneAt=i.doneAt; DB.data.incidents[DB.data.incidents.indexOf(i)]=v; DB.save(); render(); toast('保存しました','ok'); } });
+    onSubmit:function(v){ v.id=i.id; v.doneAt=i.doneAt;
+      if(!replaceById(DB.data.incidents, i.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok'); } });
 });
 action('incDone', function(ds){
   var i = byId(DB.data.incidents, ds.id); if(!i) return;
@@ -5694,7 +5881,9 @@ action('excNew', function(){
 action('excEdit', function(ds){
   var x = byId(DB.data.exceptions, ds.id); if(!x) return;
   openForm({ title:'例外の編集', wide:true, fields:EXC_FIELDS, value:x,
-    onSubmit:function(v){ v.id=x.id; DB.data.exceptions[DB.data.exceptions.indexOf(x)]=v; DB.save(); render(); toast('保存しました','ok'); } });
+    onSubmit:function(v){ v.id=x.id;
+      if(!replaceById(DB.data.exceptions, x.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok'); } });
 });
 action('excDel', function(ds){
   var x = byId(DB.data.exceptions, ds.id); if(!x) return;
@@ -5842,7 +6031,7 @@ function openImpForm(rec, empId){
       }
       if(rec){
         v.id = rec.id; v.weeklyChecks = rec.weeklyChecks; v.status = rec.status; v.result = rec.result;
-        DB.data.improvementPlans[DB.data.improvementPlans.indexOf(rec)] = v;
+        if(!replaceById(DB.data.improvementPlans, rec.id, v)){ toast(RECORD_GONE,'bad'); return false; }
       }else{
         v.id = uid('imp'); v.weeklyChecks = []; v.status = 'open'; v.result = '';
         DB.data.improvementPlans.push(v);
@@ -5972,7 +6161,7 @@ function goalStateCheck(){
     d.kpiWeeks.length >= 4 && d.oneOnOnes.length >= 1,
     d.scorecards.length >= 6 && evs.length > 0 && evs.some(function(e){ return e.stage==='final'||e.stage==='explained'; }),
     d.grades.length === 5 && d.employees.length > 0 && d.employees.every(function(e){ return !!e.grade; }),
-    d.scorecards.length > 0 && d.scorecards.every(function(s){ return (s.reports||'').trim(); })
+    d.scorecards.length > 0 && d.scorecards.every(function(s){ return String(s.reports||'').trim(); })
   ];
 }
 
@@ -6297,12 +6486,33 @@ function renderSyncCard(){
 var SETTING_KEYS = ['companyName','ceoName','projectLead','hrOwner','externalAdvisor','startDate',
                     'ceoEmpId','maxDirectReports','approvalAmount','meetingDay','meetingTime','currentPeriod'];
 
+/* 数字で入れてもらう設定と、その既定値・画面上の名前 */
+var SETTING_NUM_DEFAULTS = { maxDirectReports:6, approvalAmount:100000 };
+var SETTING_NUM_LABELS   = { maxDirectReports:'直属部下の上限人数', approvalAmount:'事前承認が必要な金額（円）' };
+function isSettingNumKey(k){ return k==='maxDirectReports' || k==='approvalAmount'; }
+
 action('setSave', function(){
   var view = document.getElementById('view');
+
+  /* 先に数字の欄だけを検査する。1つでも空欄・数字以外なら、何も保存しない。
+     空欄のまま 0 で保存すると「上限0人」「承認は0円から」となり、
+     全員に誤った指摘が出てしまうため。 */
+  var ngKey = null;
+  SETTING_KEYS.forEach(function(k){
+    if(ngKey || !isSettingNumKey(k)) return;
+    var el = view.querySelector('[name="f_'+k+'"]');
+    if(!el) return;
+    if(el.value === '' || (el.validity && el.validity.badInput) || !isFinite(parseFloat(el.value))) ngKey = k;
+  });
+  if(ngKey){
+    toast('「'+SETTING_NUM_LABELS[ngKey]+'」は半角数字で入れてください。空欄やカンマ付きは保存できません。', 'bad');
+    return;
+  }
+
   SETTING_KEYS.forEach(function(k){
     var el = view.querySelector('[name="f_'+k+'"]');
     if(!el) return;
-    DB.data.settings[k] = (k==='maxDirectReports'||k==='approvalAmount') ? num(el.value) : el.value;
+    DB.data.settings[k] = isSettingNumKey(k) ? num(el.value, SETTING_NUM_DEFAULTS[k]) : el.value;
   });
   /* プロジェクト体制の表示とも同期 */
   DB.data.projectRoles = DB.data.projectRoles || {};
@@ -6356,7 +6566,7 @@ action('dataImport', function(){
       '社員 '+parsed.employees.length+'名／保存日時 '+fmtJp(parsed.meta.updatedAt)+'\n\n'+
       '現在のデータはすべて上書きされます。よろしいですか？',
       function(){
-        DB.data = mergeDefaults(parsed, emptyData());
+        DB.data = normalizeData(mergeDefaults(parsed, emptyData())); DB.gen++;
         DB.save(); render(); toast('復元しました','ok');
       }, '復元する');
   });
@@ -6443,56 +6653,56 @@ function buildDemoData(){
     mainDuties:['会社方針の決定','重要判断と資源配分','重要顧客との関係維持'],
     deliverables:'会社目標の達成、重要判断の記録', kpis:['営業利益','会社目標達成率'],
     kpiTarget:'営業利益 月200万円以上', dataSource:'月次試算表（経理）',
-    authority:'全社の意思決定', approvals:'—', handover:'共有フォルダ／経営', replaceable:'低い（この人しかできない）' });
+    authority:'全社の意思決定', approvals:'—', handover:'共有フォルダ／経営', replaceable:'いまは引き継げる人がいない' });
   var salesMgr = emp({ name:'佐藤 花子', dept:'営業部', empType:'正社員', joinDate:'2018-04-01', jobType:'管理職',
     grade:'G4', course:'manager', manager:ceo.id, roleTitle:'営業部長', backup:'田中 健',
     mainDuties:['営業部の受注目標達成','メンバーの育成と1on1','主要顧客の維持','見積・提案の最終確認'],
     deliverables:'月次受注実績、部門KPI報告、1on1記録', kpis:['部門受注金額','受注件数','粗利率'],
     kpiTarget:'受注金額 月1,200万円／粗利率35%以上', dataSource:'販売管理システム（月次）',
     authority:'標準条件内の価格決定、メンバーの業務配分', approvals:'規定率を超える値引き、新規契約条件の変更',
-    handover:'共有フォルダ／営業部', replaceable:'中（引継ぎ期間が必要）', doingUpperWork:true, roleNeeded:true });
+    handover:'共有フォルダ／営業部', replaceable:'引き継ぎ期間が必要', doingUpperWork:true, roleNeeded:true });
   var sales1 = emp({ name:'田中 健', dept:'営業部', empType:'正社員', joinDate:'2020-04-01', jobType:'営業',
     grade:'G3', manager:salesMgr.id, roleTitle:'営業担当（既存顧客）', backup:'高橋 美咲',
     mainDuties:['既存顧客のフォロー','追加提案の実施','見積作成','商談記録の入力'],
     deliverables:'商談記録、見積書、月次の受注実績', kpis:['受注件数','受注金額','商談化率'],
     kpiTarget:'受注件数 月8件', dataSource:'販売管理システム',
     authority:'標準価格での提案、訪問計画の決定', approvals:'値引き5%超、支払条件の変更',
-    handover:'共有フォルダ／営業部／担当別', replaceable:'中（引継ぎ期間が必要）' });
+    handover:'共有フォルダ／営業部／担当別', replaceable:'引き継ぎ期間が必要' });
   var sales2 = emp({ name:'高橋 美咲', dept:'営業部', empType:'正社員', joinDate:'2023-10-01', jobType:'営業',
     grade:'G2', manager:salesMgr.id, roleTitle:'営業担当（新規）',
     mainDuties:['新規顧客の開拓','初回商談の実施','提案書作成'],
     deliverables:'商談記録、提案書', kpis:['新規商談件数','受注件数'],
     kpiTarget:'新規商談 月20件', dataSource:'販売管理システム',
     authority:'標準価格での提案', approvals:'値引き、契約条件の変更',
-    handover:'共有フォルダ／営業部', replaceable:'高い（すぐ代替できる）' });
+    handover:'共有フォルダ／営業部', replaceable:'引き継ぎやすい' });
   var mkt = emp({ name:'伊藤 誠', dept:'マーケティング部', empType:'正社員', joinDate:'2021-07-01', jobType:'マーケティング',
     grade:'G3', manager:ceo.id, roleTitle:'マーケティング担当',
     mainDuties:['広告運用','LP改善','効果測定','見込み顧客の引き渡し'],
     deliverables:'月次レポート、施策の記録', kpis:['問い合わせ件数','CPA','商談化率'],
     kpiTarget:'問い合わせ 月60件／CPA 20,000円以下', dataSource:'広告管理画面＋問い合わせフォーム集計',
     authority:'承認済み予算内での配信調整', approvals:'予算枠の変更、新規媒体の契約',
-    handover:'共有フォルダ／マーケ', replaceable:'低い（この人しかできない）', ceoOnlyKnows:true });
+    handover:'共有フォルダ／マーケ', replaceable:'いまは引き継げる人がいない', ceoOnlyKnows:true });
   var cs = emp({ name:'渡辺 由美', dept:'カスタマーサポート部', empType:'正社員', joinDate:'2022-04-01', jobType:'顧客対応',
     grade:'G2', manager:salesMgr.id, roleTitle:'顧客対応担当',
     mainDuties:['問い合わせ対応','解約兆候の把握','クレーム記録'],
     deliverables:'対応記録、月次のクレーム一覧', kpis:['解約率','初回応答時間','クレーム件数'],
     kpiTarget:'解約率 2%以下／初回応答 4時間以内', dataSource:'問い合わせ管理システム',
     authority:'標準対応範囲での回答', approvals:'返金・無償対応、特別対応の約束',
-    handover:'共有フォルダ／CS', replaceable:'中（引継ぎ期間が必要）' });
+    handover:'共有フォルダ／CS', replaceable:'引き継ぎ期間が必要' });
   var dev = emp({ name:'中村 大輔', dept:'開発部', empType:'正社員', joinDate:'2019-04-01', jobType:'開発',
     grade:'G3', manager:ceo.id, roleTitle:'開発担当',
     mainDuties:['機能開発','障害対応','仕様書の作成'],
     deliverables:'リリース物、仕様書', kpis:['納期遵守率','重大障害件数'],
     kpiTarget:'納期遵守率 95%以上', dataSource:'課題管理ツール',
     authority:'実装方法の選択', approvals:'仕様変更、外部サービスの契約',
-    handover:'ソースコード管理／共有フォルダ', replaceable:'低い（この人しかできない）', ceoOnlyKnows:true });
+    handover:'ソースコード管理／共有フォルダ', replaceable:'いまは引き継げる人がいない', ceoOnlyKnows:true });
   var acc = emp({ name:'鈴木 一郎', dept:'管理部', empType:'正社員', joinDate:'2017-04-01', jobType:'経理・総務',
     grade:'G3', manager:ceo.id, roleTitle:'経理・総務担当',
     mainDuties:['月次締め','入出金管理','契約書管理','労務手続'],
     deliverables:'月次試算表、契約書台帳', kpis:['月次締め完了日','支払遅延件数'],
     kpiTarget:'月次締め 翌月10日まで', dataSource:'会計ソフト',
     authority:'定型支出の処理', approvals:'10万円以上の支出、契約締結',
-    handover:'共有フォルダ／管理部', replaceable:'低い（この人しかできない）' });
+    handover:'共有フォルダ／管理部', replaceable:'いまは引き継げる人がいない' });
   d.settings.ceoEmpId = ceo.id;
 
   /* 役割表 */
@@ -6743,7 +6953,7 @@ function buildDemoData(){
     createdAt:hourOff(-10) });
 
   /* 関係者台帳 */
-  d.partners.push({ id:uid('par'), name:'〇〇ホールディングス（スポンサー）', kind:'スポンサー',
+  d.partners.push({ id:uid('par'), name:'〇〇ホールディングス（スポンサー）', kind:'出資者',
     contact:'経営企画室 田村様', startDate:dayOff(-200),
     interest:'自社の新規事業領域での実績づくり。四半期ごとに成果を社内報告する必要がある。',
     authority:'共同企画の内容には意見を出せるが、価格決定権はこちらにある。',
@@ -6798,7 +7008,7 @@ function buildDemoData(){
     { date:dayOff(-30), total:41, data:36, quiz:50, note:'週次KPI会議と1on1を開始した。' }
   ];
 
-  DB.data = d;
+  DB.data = d; DB.gen++;
 }
 
 /* ===== 16-decisions.js ===== */
@@ -6888,7 +7098,10 @@ function decisionStats(){
   var vFull = vens.filter(function(v){ return ventureFill(v).rate===100; }).length;
   var vExit = vens.filter(function(v){ return String(v.exitCond||'').trim(); }).length;
   return {
-    total:decs.length, decided:decided.length, holding:decs.filter(function(x){return x.stage==='holding'||x.stage==='draft';}).length,
+    /* 「検討中」は、確定でも見送りでもないものすべて。
+       段階の名前を1つずつ並べると、増やしたときに数え漏れる */
+    total:decs.length, decided:decided.length,
+    holding:decs.filter(function(x){ return x.stage!=='decided' && x.stage!=='dropped'; }).length,
     holdRate: decided.length ? Math.round(kept/decided.length*100) : null,
     ventures:vens.length, started:vStarted.length,
     sheetRate: vens.length ? Math.round(vFull/vens.length*100) : null,
@@ -7065,7 +7278,7 @@ action('decNew', function(){
     value:{ kind:'people', raisedAt:fmtDateTimeLocal(new Date()) },
     onSubmit:function(v){
       v.id = uid('dec'); v.createdAt = nowIso(); v.stage = 'holding'; v.cooled = false;
-      if(v.raisedAt) v.raisedAt = new Date(v.raisedAt).toISOString();
+      if(v.raisedAt) v.raisedAt = toIso(v.raisedAt);
       DB.data.decisions.push(v); DB.save(); render();
       toast('登録しました。24時間おいてから確定できます。','ok');
     }
@@ -7096,7 +7309,7 @@ action('decEdit', function(ds){
     submitLabel:'保存',
     onSubmit:function(v){
       for(var k in v) rec[k] = v[k];
-      if(rec.raisedAt) rec.raisedAt = new Date(rec.raisedAt).toISOString();
+      if(rec.raisedAt) rec.raisedAt = toIso(rec.raisedAt);
       DB.save(); render(); toast('保存しました','ok');
     }
   });
@@ -7177,7 +7390,7 @@ action('venNew', function(){
     value:{ raisedAt:fmtDateTimeLocal(new Date()) },
     onSubmit:function(v){
       v.id = uid('ven'); v.createdAt = nowIso(); v.stage = 'draft';
-      if(v.raisedAt) v.raisedAt = new Date(v.raisedAt).toISOString();
+      if(v.raisedAt) v.raisedAt = toIso(v.raisedAt);
       DB.data.ventures.push(v); DB.save(); render();
       toast('登録しました。48時間の保留に入ります。','ok');
     }
@@ -7198,7 +7411,7 @@ action('venEdit', function(ds){
     value:withLocalRaisedAt(rec), submitLabel:'保存',
     onSubmit:function(v){
       for(var k in v) rec[k] = v[k];
-      if(rec.raisedAt) rec.raisedAt = new Date(rec.raisedAt).toISOString();
+      if(rec.raisedAt) rec.raisedAt = toIso(rec.raisedAt);
       DB.save(); render(); toast('保存しました','ok');
     }
   });
@@ -7375,6 +7588,9 @@ VIEWS.delegation = {
           if(!r.state || r.state==='open'){
             b += ' '+btn('確認を記録','dlgCheck',{id:r.id},'primary','check');
             b += ' '+btn('終了','dlgClose',{id:r.id});
+          } else {
+            /* 誤って終了したときに、進行中へ戻せるようにする */
+            b += ' '+btn('進行中に戻す','dlgReopen',{id:r.id});
           }
           return b+' '+btn('削除','dlgDel',{id:r.id},'danger'); } }
     ], rows, {
@@ -7519,6 +7735,16 @@ action('dlgCheck', function(ds){
   });
 });
 
+action('dlgReopen', function(ds){
+  var rec = byId(DB.data.delegations, ds.id); if(!rec) return;
+  confirmDialog('この仕事を進行中に戻しますか',
+    '「'+(rec.task||'この仕事')+'」を、もう一度進行中として扱います。'+
+    '記録した結果や振り返りはそのまま残ります。',
+    function(){
+      rec.state = 'open';
+      DB.save(); render(); toast('進行中に戻しました','ok');
+    }, '進行中に戻す');
+});
 action('dlgClose', function(ds){
   var rec = byId(DB.data.delegations, ds.id); if(!rec) return;
   openForm({
@@ -7603,7 +7829,10 @@ function capitalSummary(period){
   });
   var periods = (DB.data.capital && DB.data.capital.periods) || [];
   var p = period ? periods.filter(function(x){ return x.label===period; })[0] : null;
-  var profit = p ? num(p.profit,0) : periods.reduce(function(s,x){ return s+num(x.profit,0); }, 0);
+  /* 期を指定したのに、その期が見つからない（あとから削除した等）場合に
+     全期の利益で割ってしまうと、再投資率が実態とかけ離れる。0として扱う */
+  var profit = period ? (p ? num(p.profit,0) : 0)
+                      : periods.reduce(function(s,x){ return s+num(x.profit,0); }, 0);
   sum.profit = profit;
   sum.rate = profit>0 ? Math.round(sum.reinvest/profit*100) : null;
   sum.nonBizRate = profit>0 ? Math.round(sum.nonbiz/profit*100) : null;
@@ -7795,13 +8024,33 @@ function renderPartners(){
 /* ---------- 操作 ---------- */
 action('capTab', function(ds){ capTab = ds.t; render(); });
 
+var CAP_RULE_DEFAULTS = { reinvestRate:50, nonBizCap:0 };
+var CAP_RULE_LABELS   = { reinvestRate:'利益に対する再投資率（％）', nonBizCap:'事業と関係ない支出の年間上限（円）' };
+function isCapRuleNumKey(k){ return k==='reinvestRate' || k==='nonBizCap'; }
+
 action('capRuleSave', function(){
   var view = document.getElementById('view');
   var r = capitalRule();
-  ['reinvestRate','nonBizCap','approver','note'].forEach(function(k){
+  var keys = ['reinvestRate','nonBizCap','approver','note'];
+
+  /* 数字の欄を先に検査し、不正なら一切保存しない
+     （空欄のまま 0 で保存すると、決めたはずの枠が消えてしまうため） */
+  var ngKey = null;
+  keys.forEach(function(k){
+    if(ngKey || !isCapRuleNumKey(k)) return;
     var el = view.querySelector('[name="f_'+k+'"]');
     if(!el) return;
-    r[k] = (k==='reinvestRate'||k==='nonBizCap') ? num(el.value) : el.value;
+    if(el.value === '' || (el.validity && el.validity.badInput) || !isFinite(parseFloat(el.value))) ngKey = k;
+  });
+  if(ngKey){
+    toast('「'+CAP_RULE_LABELS[ngKey]+'」は半角数字で入れてください。空欄やカンマ付きは保存できません。', 'bad');
+    return;
+  }
+
+  keys.forEach(function(k){
+    var el = view.querySelector('[name="f_'+k+'"]');
+    if(!el) return;
+    r[k] = isCapRuleNumKey(k) ? num(el.value, CAP_RULE_DEFAULTS[k]) : el.value;
   });
   DB.data.capital.rule = r;
   DB.save(); render(); toast('再投資ルールを保存しました','ok');
@@ -7971,7 +8220,7 @@ action('parNew', function(){
     intro:'<b>相手が何を得たいのかを書けない相手とは、どこかで期待のずれが出ます。</b>'+
           '想定と違ったときに慌てないよう、始める前に、お互いの狙いと終わり方を言葉にしておきます。',
     fields:PARTNER_FORM(),
-    value:{ kind:'スポンサー', startDate:todayStr(), checkCycle:'3か月に1回' },
+    value:{ kind:'出資者', startDate:todayStr(), checkCycle:'3か月に1回' },
     onSubmit:function(v){
       v.id = uid('par'); v.createdAt = nowIso();
       DB.data.partners.push(v); DB.save(); render(); toast('登録しました','ok');
@@ -8384,9 +8633,9 @@ function renderDiagChecks(){
     h += card('診断の推移', tableHtml([
       { label:'日付', key:'date', width:'110px' },
       { label:'正の循環スコア', width:'160px', render:function(r){
-          return progressBar(r.total||0, scoreCls(r.total))+'<span class="small mono">'+(r.total===null?'—':r.total+'%')+'</span>'; } },
-      { label:'先行指標', cls:'num', width:'90px', render:function(r){ return r.data===null?'—':r.data+'%'; } },
-      { label:'検証質問', cls:'num', width:'90px', render:function(r){ return r.quiz===null?'—':r.quiz+'%'; } },
+          return progressBar(r.total||0, scoreCls(r.total))+'<span class="small mono">'+(r.total===null||r.total===undefined?'—':r.total+'%')+'</span>'; } },
+      { label:'先行指標', cls:'num', width:'90px', render:function(r){ return r.data===null||r.data===undefined?'—':r.data+'%'; } },
+      { label:'検証質問', cls:'num', width:'90px', render:function(r){ return r.quiz===null||r.quiz===undefined?'—':r.quiz+'%'; } },
       { label:'メモ', render:function(r){ return '<span class="small">'+esc(r.note||'')+'</span>'; } }
     ], sortBy(hist, function(r){ return r.date; }).reverse(), {}), { tight:true });
   }
@@ -8534,7 +8783,7 @@ function syncPayload(){
 }
 function syncApply(payload, from){
   if(!payload || !payload.data){ return false; }
-  DB.data = mergeDefaults(payload.data, emptyData());
+  DB.data = normalizeData(mergeDefaults(payload.data, emptyData())); DB.gen++;
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data)); }catch(e){}
   SYNC.lastPulledAt = payload.updatedAt || nowIso();
   SYNC.dirty = false;
@@ -9077,15 +9326,20 @@ function navCount(key){
 }
 
 function renderNav(){
-  var alerts = buildAlerts();
   var attn = {};
-  alerts.forEach(function(a){ if(a.level==='bad') attn[a.view] = (attn[a.view]||0)+1; });
+  /* 集計でつまずいても、メニューそのものは必ず出す（件数バッジが消えるだけで済ませる） */
+  try{
+    buildAlerts().forEach(function(a){ if(a.level==='bad') attn[a.view] = (attn[a.view]||0)+1; });
+  }catch(err){
+    if(typeof console !== 'undefined' && console.error) console.error('renderNav/buildAlerts', err);
+  }
 
   var h = '';
   NAV.forEach(function(g){
     if(g.group) h += '<div class="nav-group">'+esc(g.group)+'</div>';
     g.items.forEach(function(it){
-      var n = navCount(it.key);
+      var n = 0;
+      try{ n = navCount(it.key); }catch(err){ n = 0; }
       var bad = attn[it.key];
       var v = VIEWS[it.key];
       h += '<button type="button" class="nav-item '+(currentView===it.key?'active':'')+'" '+
@@ -9101,16 +9355,36 @@ function renderNav(){
   return h;
 }
 
+/* 左メニューが丸ごと作れなかったときの、集計を一切しない最低限のメニュー。
+   これがあると、どこかの記録が壊れていても他の画面へ移動できる。 */
+function renderNavPlain(){
+  var h = '';
+  NAV.forEach(function(g){
+    if(g.group) h += '<div class="nav-group">'+esc(g.group)+'</div>';
+    g.items.forEach(function(it){
+      h += '<button type="button" class="nav-item '+(currentView===it.key?'active':'')+'" '+
+        'data-act="go" data-view="'+it.key+'" title="'+esc(it.label)+'">'+
+        '<span class="lb">'+esc(it.label)+'</span></button>';
+    });
+  });
+  return h;
+}
+
 function render(){
   var v = VIEWS[currentView] || VIEWS.dashboard;
-  document.getElementById('nav').innerHTML = renderNav();
+  var navEl = document.getElementById('nav');
+  try{ navEl.innerHTML = renderNav(); }
+  catch(err){
+    if(typeof console !== 'undefined' && console.error) console.error('renderNav', err);
+    try{ navEl.innerHTML = renderNavPlain(); }catch(e2){}
+  }
 
   var d = DB.data;
   var company = d.settings.companyName;
   document.getElementById('brandTitle').textContent = company || '評価制度・組織運営';
   document.getElementById('brandSub').textContent = company ? '組織運営アプリ' : 'チームで使う運用アプリ';
   var mark = document.getElementById('brandMark');
-  if(mark) mark.textContent = company ? company.replace(/^(株式会社|有限会社|合同会社)/,'').charAt(0) : '評';
+  if(mark) mark.textContent = company ? String(company).replace(/^(株式会社|有限会社|合同会社)/,'').charAt(0) : '評';
 
   document.getElementById('topTitle').textContent = v.title;
   document.getElementById('topDesc').textContent = v.desc || '';
@@ -9133,7 +9407,16 @@ function render(){
   }
 
   var view = document.getElementById('view');
-  view.innerHTML = v.render();
+  /* 1つの画面が表示できなくても、アプリ全体は使えるようにする */
+  try{ view.innerHTML = v.render(); }
+  catch(err){
+    if(typeof console !== 'undefined' && console.error) console.error('view.render/'+currentView, err);
+    view.innerHTML = '<div class="empty" style="padding:40px 20px;">'+
+      '<div class="big">この画面を表示できませんでした</div>'+
+      '<div class="small muted">保存されている記録に、想定していない値が入っている可能性があります。<br>'+
+      '「設定・データ」からバックアップを保存したうえで、ご連絡ください。</div>'+
+      '<div class="btn-row"><button type="button" class="btn" data-act="go" data-view="settings">設定・データを開く</button></div></div>';
+  }
   view.scrollTop = 0;
   window.scrollTo(0,0);
   document.title = v.title + '｜' + (company ? company+' ' : '') + '組織運営アプリ';

@@ -208,12 +208,33 @@ function renderSyncCard(){
 var SETTING_KEYS = ['companyName','ceoName','projectLead','hrOwner','externalAdvisor','startDate',
                     'ceoEmpId','maxDirectReports','approvalAmount','meetingDay','meetingTime','currentPeriod'];
 
+/* 数字で入れてもらう設定と、その既定値・画面上の名前 */
+var SETTING_NUM_DEFAULTS = { maxDirectReports:6, approvalAmount:100000 };
+var SETTING_NUM_LABELS   = { maxDirectReports:'直属部下の上限人数', approvalAmount:'事前承認が必要な金額（円）' };
+function isSettingNumKey(k){ return k==='maxDirectReports' || k==='approvalAmount'; }
+
 action('setSave', function(){
   var view = document.getElementById('view');
+
+  /* 先に数字の欄だけを検査する。1つでも空欄・数字以外なら、何も保存しない。
+     空欄のまま 0 で保存すると「上限0人」「承認は0円から」となり、
+     全員に誤った指摘が出てしまうため。 */
+  var ngKey = null;
+  SETTING_KEYS.forEach(function(k){
+    if(ngKey || !isSettingNumKey(k)) return;
+    var el = view.querySelector('[name="f_'+k+'"]');
+    if(!el) return;
+    if(el.value === '' || (el.validity && el.validity.badInput) || !isFinite(parseFloat(el.value))) ngKey = k;
+  });
+  if(ngKey){
+    toast('「'+SETTING_NUM_LABELS[ngKey]+'」は半角数字で入れてください。空欄やカンマ付きは保存できません。', 'bad');
+    return;
+  }
+
   SETTING_KEYS.forEach(function(k){
     var el = view.querySelector('[name="f_'+k+'"]');
     if(!el) return;
-    DB.data.settings[k] = (k==='maxDirectReports'||k==='approvalAmount') ? num(el.value) : el.value;
+    DB.data.settings[k] = isSettingNumKey(k) ? num(el.value, SETTING_NUM_DEFAULTS[k]) : el.value;
   });
   /* プロジェクト体制の表示とも同期 */
   DB.data.projectRoles = DB.data.projectRoles || {};
@@ -267,7 +288,7 @@ action('dataImport', function(){
       '社員 '+parsed.employees.length+'名／保存日時 '+fmtJp(parsed.meta.updatedAt)+'\n\n'+
       '現在のデータはすべて上書きされます。よろしいですか？',
       function(){
-        DB.data = mergeDefaults(parsed, emptyData());
+        DB.data = normalizeData(mergeDefaults(parsed, emptyData())); DB.gen++;
         DB.save(); render(); toast('復元しました','ok');
       }, '復元する');
   });
@@ -354,56 +375,56 @@ function buildDemoData(){
     mainDuties:['会社方針の決定','重要判断と資源配分','重要顧客との関係維持'],
     deliverables:'会社目標の達成、重要判断の記録', kpis:['営業利益','会社目標達成率'],
     kpiTarget:'営業利益 月200万円以上', dataSource:'月次試算表（経理）',
-    authority:'全社の意思決定', approvals:'—', handover:'共有フォルダ／経営', replaceable:'低い（この人しかできない）' });
+    authority:'全社の意思決定', approvals:'—', handover:'共有フォルダ／経営', replaceable:'いまは引き継げる人がいない' });
   var salesMgr = emp({ name:'佐藤 花子', dept:'営業部', empType:'正社員', joinDate:'2018-04-01', jobType:'管理職',
     grade:'G4', course:'manager', manager:ceo.id, roleTitle:'営業部長', backup:'田中 健',
     mainDuties:['営業部の受注目標達成','メンバーの育成と1on1','主要顧客の維持','見積・提案の最終確認'],
     deliverables:'月次受注実績、部門KPI報告、1on1記録', kpis:['部門受注金額','受注件数','粗利率'],
     kpiTarget:'受注金額 月1,200万円／粗利率35%以上', dataSource:'販売管理システム（月次）',
     authority:'標準条件内の価格決定、メンバーの業務配分', approvals:'規定率を超える値引き、新規契約条件の変更',
-    handover:'共有フォルダ／営業部', replaceable:'中（引継ぎ期間が必要）', doingUpperWork:true, roleNeeded:true });
+    handover:'共有フォルダ／営業部', replaceable:'引き継ぎ期間が必要', doingUpperWork:true, roleNeeded:true });
   var sales1 = emp({ name:'田中 健', dept:'営業部', empType:'正社員', joinDate:'2020-04-01', jobType:'営業',
     grade:'G3', manager:salesMgr.id, roleTitle:'営業担当（既存顧客）', backup:'高橋 美咲',
     mainDuties:['既存顧客のフォロー','追加提案の実施','見積作成','商談記録の入力'],
     deliverables:'商談記録、見積書、月次の受注実績', kpis:['受注件数','受注金額','商談化率'],
     kpiTarget:'受注件数 月8件', dataSource:'販売管理システム',
     authority:'標準価格での提案、訪問計画の決定', approvals:'値引き5%超、支払条件の変更',
-    handover:'共有フォルダ／営業部／担当別', replaceable:'中（引継ぎ期間が必要）' });
+    handover:'共有フォルダ／営業部／担当別', replaceable:'引き継ぎ期間が必要' });
   var sales2 = emp({ name:'高橋 美咲', dept:'営業部', empType:'正社員', joinDate:'2023-10-01', jobType:'営業',
     grade:'G2', manager:salesMgr.id, roleTitle:'営業担当（新規）',
     mainDuties:['新規顧客の開拓','初回商談の実施','提案書作成'],
     deliverables:'商談記録、提案書', kpis:['新規商談件数','受注件数'],
     kpiTarget:'新規商談 月20件', dataSource:'販売管理システム',
     authority:'標準価格での提案', approvals:'値引き、契約条件の変更',
-    handover:'共有フォルダ／営業部', replaceable:'高い（すぐ代替できる）' });
+    handover:'共有フォルダ／営業部', replaceable:'引き継ぎやすい' });
   var mkt = emp({ name:'伊藤 誠', dept:'マーケティング部', empType:'正社員', joinDate:'2021-07-01', jobType:'マーケティング',
     grade:'G3', manager:ceo.id, roleTitle:'マーケティング担当',
     mainDuties:['広告運用','LP改善','効果測定','見込み顧客の引き渡し'],
     deliverables:'月次レポート、施策の記録', kpis:['問い合わせ件数','CPA','商談化率'],
     kpiTarget:'問い合わせ 月60件／CPA 20,000円以下', dataSource:'広告管理画面＋問い合わせフォーム集計',
     authority:'承認済み予算内での配信調整', approvals:'予算枠の変更、新規媒体の契約',
-    handover:'共有フォルダ／マーケ', replaceable:'低い（この人しかできない）', ceoOnlyKnows:true });
+    handover:'共有フォルダ／マーケ', replaceable:'いまは引き継げる人がいない', ceoOnlyKnows:true });
   var cs = emp({ name:'渡辺 由美', dept:'カスタマーサポート部', empType:'正社員', joinDate:'2022-04-01', jobType:'顧客対応',
     grade:'G2', manager:salesMgr.id, roleTitle:'顧客対応担当',
     mainDuties:['問い合わせ対応','解約兆候の把握','クレーム記録'],
     deliverables:'対応記録、月次のクレーム一覧', kpis:['解約率','初回応答時間','クレーム件数'],
     kpiTarget:'解約率 2%以下／初回応答 4時間以内', dataSource:'問い合わせ管理システム',
     authority:'標準対応範囲での回答', approvals:'返金・無償対応、特別対応の約束',
-    handover:'共有フォルダ／CS', replaceable:'中（引継ぎ期間が必要）' });
+    handover:'共有フォルダ／CS', replaceable:'引き継ぎ期間が必要' });
   var dev = emp({ name:'中村 大輔', dept:'開発部', empType:'正社員', joinDate:'2019-04-01', jobType:'開発',
     grade:'G3', manager:ceo.id, roleTitle:'開発担当',
     mainDuties:['機能開発','障害対応','仕様書の作成'],
     deliverables:'リリース物、仕様書', kpis:['納期遵守率','重大障害件数'],
     kpiTarget:'納期遵守率 95%以上', dataSource:'課題管理ツール',
     authority:'実装方法の選択', approvals:'仕様変更、外部サービスの契約',
-    handover:'ソースコード管理／共有フォルダ', replaceable:'低い（この人しかできない）', ceoOnlyKnows:true });
+    handover:'ソースコード管理／共有フォルダ', replaceable:'いまは引き継げる人がいない', ceoOnlyKnows:true });
   var acc = emp({ name:'鈴木 一郎', dept:'管理部', empType:'正社員', joinDate:'2017-04-01', jobType:'経理・総務',
     grade:'G3', manager:ceo.id, roleTitle:'経理・総務担当',
     mainDuties:['月次締め','入出金管理','契約書管理','労務手続'],
     deliverables:'月次試算表、契約書台帳', kpis:['月次締め完了日','支払遅延件数'],
     kpiTarget:'月次締め 翌月10日まで', dataSource:'会計ソフト',
     authority:'定型支出の処理', approvals:'10万円以上の支出、契約締結',
-    handover:'共有フォルダ／管理部', replaceable:'低い（この人しかできない）' });
+    handover:'共有フォルダ／管理部', replaceable:'いまは引き継げる人がいない' });
   d.settings.ceoEmpId = ceo.id;
 
   /* 役割表 */
@@ -654,7 +675,7 @@ function buildDemoData(){
     createdAt:hourOff(-10) });
 
   /* 関係者台帳 */
-  d.partners.push({ id:uid('par'), name:'〇〇ホールディングス（スポンサー）', kind:'スポンサー',
+  d.partners.push({ id:uid('par'), name:'〇〇ホールディングス（スポンサー）', kind:'出資者',
     contact:'経営企画室 田村様', startDate:dayOff(-200),
     interest:'自社の新規事業領域での実績づくり。四半期ごとに成果を社内報告する必要がある。',
     authority:'共同企画の内容には意見を出せるが、価格決定権はこちらにある。',
@@ -709,5 +730,5 @@ function buildDemoData(){
     { date:dayOff(-30), total:41, data:36, quiz:50, note:'週次KPI会議と1on1を開始した。' }
   ];
 
-  DB.data = d;
+  DB.data = d; DB.gen++;
 }

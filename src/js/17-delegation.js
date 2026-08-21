@@ -112,6 +112,9 @@ VIEWS.delegation = {
           if(!r.state || r.state==='open'){
             b += ' '+btn('確認を記録','dlgCheck',{id:r.id},'primary','check');
             b += ' '+btn('終了','dlgClose',{id:r.id});
+          } else {
+            /* 誤って終了したときに、進行中へ戻せるようにする */
+            b += ' '+btn('進行中に戻す','dlgReopen',{id:r.id});
           }
           return b+' '+btn('削除','dlgDel',{id:r.id},'danger'); } }
     ], rows, {
@@ -256,6 +259,16 @@ action('dlgCheck', function(ds){
   });
 });
 
+action('dlgReopen', function(ds){
+  var rec = byId(DB.data.delegations, ds.id); if(!rec) return;
+  confirmDialog('この仕事を進行中に戻しますか',
+    '「'+(rec.task||'この仕事')+'」を、もう一度進行中として扱います。'+
+    '記録した結果や振り返りはそのまま残ります。',
+    function(){
+      rec.state = 'open';
+      DB.save(); render(); toast('進行中に戻しました','ok');
+    }, '進行中に戻す');
+});
 action('dlgClose', function(ds){
   var rec = byId(DB.data.delegations, ds.id); if(!rec) return;
   openForm({

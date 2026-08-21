@@ -302,17 +302,20 @@ function emptyData(){
 
 var DB = {
   data:emptyData(),
+  /* データを丸ごと入れ替えるたびに1増える番号。
+     開いたままのふきだしが、入れ替わる前の記録を掴んだままでないかを見分けるために使う。 */
+  gen:0,
   load:function(){
     try{
       var raw = localStorage.getItem(STORAGE_KEY);
       if(raw){
         var parsed = JSON.parse(raw);
-        this.data = mergeDefaults(parsed, emptyData());
+        this.data = normalizeData(mergeDefaults(parsed, emptyData())); this.gen++;
       }
     }catch(e){
       console.error('読み込みに失敗しました', e);
       toast('保存データの読み込みに失敗しました。初期状態で開始します。','bad');
-      this.data = emptyData();
+      this.data = emptyData(); this.gen++;
     }
     return this.data;
   },
@@ -327,10 +330,70 @@ var DB = {
     /* 共有モードのときは、共有フォルダ／共有サーバーへも反映する */
     if(typeof syncAfterSave === 'function') syncAfterSave();
   },
-  reset:function(){ this.data = emptyData(); this.save(); }
+  reset:function(){ this.data = emptyData(); this.gen++; this.save(); }
 };
 
 /* 保存済みデータに新しい項目が増えていても壊れないように補完する */
+/* 読み込んだデータの形を整える。
+   共有先で書き換えられたり、バックアップを手で直したりして、
+   配列であるべきところが空や別の型になっていても、画面が落ちないようにする。
+   （mergeDefaults は入れ物の有無しか見ないので、中身はここで整える） */
+function normalizeData(d){
+  if(!d || typeof d !== 'object') return d;
+  function arr(o, k){ if(o && !Array.isArray(o[k])) o[k] = []; }
+  arr(d, 'employees'); arr(d, 'goals'); arr(d, 'scorecards'); arr(d, 'kpiWeeks');
+  arr(d, 'oneOnOnes'); arr(d, 'evaluations'); arr(d, 'reports'); arr(d, 'incidents');
+  arr(d, 'exceptions'); arr(d, 'improvementPlans'); arr(d, 'grades');
+  arr(d, 'decisions'); arr(d, 'ventures'); arr(d, 'delegations'); arr(d, 'partners');
+
+  d.kpiWeeks.forEach(function(w){ if(w) arr(w, 'rows'); });
+  d.oneOnOnes.forEach(function(o){ if(o) arr(o, 'promises'); });
+  d.delegations.forEach(function(x){ if(x) arr(x, 'checks'); });
+  d.improvementPlans.forEach(function(p){ if(p){ arr(p, 'weeklyChecks'); arr(p, 'items'); } });
+  d.employees.forEach(function(e){ if(e) arr(e, 'gradeHistory'); });
+  d.evaluations.forEach(function(v){
+    if(!v) return;
+    if(!v.scores || typeof v.scores !== 'object') v.scores = {};
+    if(!v.selfScores || typeof v.selfScores !== 'object') v.selfScores = {};
+    if(!v.comments || typeof v.comments !== 'object') v.comments = {};
+    if(!v.selfComments || typeof v.selfComments !== 'object') v.selfComments = {};
+  });
+  if(!d.capital || typeof d.capital !== 'object') d.capital = { rule:{}, periods:[], spends:[] };
+  arr(d.capital, 'periods'); arr(d.capital, 'spends');
+  if(!d.capital.rule || typeof d.capital.rule !== 'object') d.capital.rule = {};
+  if(!d.diagnosis || typeof d.diagnosis !== 'object') d.diagnosis = { answers:{}, history:[] };
+  arr(d.diagnosis, 'history');
+  if(!d.diagnosis.answers || typeof d.diagnosis.answers !== 'object') d.diagnosis.answers = {};
+  if(!d.settings || typeof d.settings !== 'object') d.settings = {};
+  if(!d.meta || typeof d.meta !== 'object') d.meta = { version:APP_VERSION, updatedAt:nowIso() };
+  if(!d.planChecks || typeof d.planChecks !== 'object') d.planChecks = {};
+  if(!d.firstSteps || typeof d.firstSteps !== 'object') d.firstSteps = {};
+  if(!d.projectRoles || typeof d.projectRoles !== 'object') d.projectRoles = {};
+
+  /* id が無い記録があると、その行の入力・編集・削除が黙って効かなくなる。
+     （目印が見つからず、画面上は入ったように見えて、次の描き直しで元に戻る）
+     手で直したバックアップや古い形式の取り込みで起こりうるので、ここで補っておく。 */
+  function fixIds(a, pf){ (a||[]).forEach(function(r){ if(r && !r.id) r.id = uid(pf); }); }
+  fixIds(d.employees,'emp'); fixIds(d.goals,'goal'); fixIds(d.scorecards,'sc');
+  fixIds(d.kpiWeeks,'wk'); d.kpiWeeks.forEach(function(w){ if(w) fixIds(w.rows,'row'); });
+  fixIds(d.oneOnOnes,'ooo'); fixIds(d.evaluations,'ev'); fixIds(d.reports,'rep');
+  fixIds(d.incidents,'inc'); fixIds(d.exceptions,'exc'); fixIds(d.improvementPlans,'imp');
+  fixIds(d.decisions,'dec'); fixIds(d.ventures,'ven'); fixIds(d.delegations,'dlg');
+  fixIds(d.partners,'par'); fixIds(d.capital.periods,'cp'); fixIds(d.capital.spends,'sp');
+
+  /* settings の文字列項目が、取り込んだJSONで数値などになっていても落ちないようにする。
+     ただし null を "null" という文字にしてしまうと、未設定の扱いが壊れて
+     見出しに「null」と出てしまうので、null と undefined はそのままにする。 */
+  ['companyName','ceoName','projectLead','hrOwner','externalAdvisor','startDate','currentPeriod']
+    .forEach(function(k){
+      var v = d.settings[k];
+      if(v === undefined || v === null || typeof v === 'string') return;
+      /* 数値・真偽は文字にする。配列やオブジェクトは名前として出せないので空にする */
+      d.settings[k] = (typeof v === 'number' || typeof v === 'boolean') ? String(v) : '';
+    });
+  return d;
+}
+
 function mergeDefaults(saved, def){
   if(saved === null || saved === undefined) return def;
   if(Array.isArray(def)) return Array.isArray(saved) ? saved : def;
@@ -349,11 +412,18 @@ function uid(prefix){
   return (prefix||'id') + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7);
 }
 function nowIso(){ return new Date().toISOString(); }
+/* 日時として読めない値のことがあるので、読めなければ空にする（保存が落ちないように） */
+function toIso(v){
+  if(!v) return '';
+  var d = new Date(v);
+  return isNaN(d.getTime()) ? '' : d.toISOString();
+}
 function todayStr(){ return fmtDate(new Date()); }
 function fmtDate(d){
   if(!d) return '';
-  if(typeof d === 'string') d = new Date(d);
-  if(isNaN(d.getTime())) return '';
+  /* 記録が壊れていて日付でないことがあるので、日付に直せないものは空にする */
+  if(!(d instanceof Date)) d = new Date(d);
+  if(!d || typeof d.getTime !== 'function' || isNaN(d.getTime())) return '';
   var m = ('0'+(d.getMonth()+1)).slice(-2), day = ('0'+d.getDate()).slice(-2);
   return d.getFullYear()+'-'+m+'-'+day;
 }
@@ -378,12 +448,16 @@ function shortDate(x){
   if(isNaN(d.getTime())) return String(x).slice(5);
   return (d.getMonth()+1)+'/'+d.getDate();
 }
+/* 日付として読めない値が入っていることがあるので、その場合は「今日」で数える
+   （'NaN-aN' のような壊れた文字が画面に出るのを防ぐ） */
 function monthStr(d){
   d = d ? new Date(d) : new Date();
+  if(isNaN(d.getTime())) d = new Date();
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
 }
 function quarterOf(dstr){
   var d = new Date(dstr||todayStr());
+  if(isNaN(d.getTime())) d = new Date();
   return d.getFullYear()+'-Q'+(Math.floor(d.getMonth()/3)+1);
 }
 function daysBetween(a,b){
@@ -411,10 +485,22 @@ function lines(s){
   return String(s||'').split('\n').map(function(x){return x.trim();}).filter(function(x){return x!=='';});
 }
 function pct(n){ return (isFinite(n)?Math.round(n):0)+'%'; }
-function clamp(n,a,b){ return Math.max(a,Math.min(b,n)); }
+/* 数でない値が来ても、範囲の中の数を必ず返す（画面に NaN を出さないため） */
+function clamp(n,a,b){ return Math.max(num(a,0), Math.min(num(b,0), num(n,0))); }
 function num(v,def){ var n = parseFloat(v); return isFinite(n) ? n : (def===undefined?0:def); }
 /* 一覧からIDで1件を取り出す。見つからない場合と、一覧そのものがない場合は null を返す */
 function byId(arr,id){ if(!arr || !arr.length) return null; for(var i=0;i<arr.length;i++) if(arr[i] && arr[i].id===id) return arr[i]; return null; }
+/* 記録を id で引き直して差し替える。
+   ふきだしを開いている間に共有先からデータが届くと、掴んでいた記録は
+   「捨てられた古いもの」になる。そのまま位置で差し替えると入力が消えてしまうので、
+   必ず id で引き直す。見つからなければ false（他の人が消した等）。 */
+function replaceById(arr, id, obj){
+  if(!arr || !arr.length) return false;
+  for(var i=0;i<arr.length;i++){ if(arr[i] && arr[i].id === id){ arr[i] = obj; return true; } }
+  return false;
+}
+var RECORD_GONE = 'この記録は見つかりませんでした（ほかの人が削除した可能性があります）。入力はこのまま残してありますので、閉じる前に控えてください。';
+
 function sortBy(arr,fn){ return arr.slice().sort(function(a,b){ var x=fn(a),y=fn(b); return x<y?-1:x>y?1:0; }); }
 function uniq(arr){ var o=[],s={}; arr.forEach(function(v){ if(v && !s[v]){s[v]=1;o.push(v);} }); return o; }
 

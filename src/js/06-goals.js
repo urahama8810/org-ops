@@ -149,7 +149,8 @@ action('goalEdit', function(ds){
     title:'目標の編集', wide:true, fields:fields, value:g,
     onSubmit:function(v){
       v.id = g.id;
-      DB.data.goals[DB.data.goals.indexOf(g)] = v; DB.save(); render(); toast('保存しました','ok');
+      if(!replaceById(DB.data.goals, g.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok');
     }
   });
 });

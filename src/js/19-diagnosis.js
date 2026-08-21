@@ -360,9 +360,9 @@ function renderDiagChecks(){
     h += card('診断の推移', tableHtml([
       { label:'日付', key:'date', width:'110px' },
       { label:'正の循環スコア', width:'160px', render:function(r){
-          return progressBar(r.total||0, scoreCls(r.total))+'<span class="small mono">'+(r.total===null?'—':r.total+'%')+'</span>'; } },
-      { label:'先行指標', cls:'num', width:'90px', render:function(r){ return r.data===null?'—':r.data+'%'; } },
-      { label:'検証質問', cls:'num', width:'90px', render:function(r){ return r.quiz===null?'—':r.quiz+'%'; } },
+          return progressBar(r.total||0, scoreCls(r.total))+'<span class="small mono">'+(r.total===null||r.total===undefined?'—':r.total+'%')+'</span>'; } },
+      { label:'先行指標', cls:'num', width:'90px', render:function(r){ return r.data===null||r.data===undefined?'—':r.data+'%'; } },
+      { label:'検証質問', cls:'num', width:'90px', render:function(r){ return r.quiz===null||r.quiz===undefined?'—':r.quiz+'%'; } },
       { label:'メモ', render:function(r){ return '<span class="small">'+esc(r.note||'')+'</span>'; } }
     ], sortBy(hist, function(r){ return r.date; }).reverse(), {}), { tight:true });
   }

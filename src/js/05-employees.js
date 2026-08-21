@@ -144,13 +144,13 @@ VIEWS.employees = {
 
     /* 重点確認リスト */
     var risk = d.employees.filter(function(e){
-      return (!e.manager && !e.isTop) || !(e.deliverables||'').trim() || lines(e.kpis).length===0 || e.ceoOnlyKnows;
+      return (!e.manager && !e.isTop) || !String(e.deliverables||'').trim() || lines(e.kpis).length===0 || e.ceoOnlyKnows;
     });
     if(risk.length){
       h += card('重点確認が必要な社員（'+risk.length+'名）', tableHtml([
         {label:'氏名', render:function(e){ return '<b>'+esc(e.name)+'</b><div class="small muted">'+esc(e.dept||'')+'</div>'; }},
         {label:'直属上司が曖昧', render:function(e){ return (!e.manager&&!e.isTop) ? badge('該当','bad') : '<span class="muted">—</span>'; }},
-        {label:'成果物が未定義', render:function(e){ return !(e.deliverables||'').trim() ? badge('該当','bad') : '<span class="muted">—</span>'; }},
+        {label:'成果物が未定義', render:function(e){ return !String(e.deliverables||'').trim() ? badge('該当','bad') : '<span class="muted">—</span>'; }},
         {label:'数値で確認できない', render:function(e){ return lines(e.kpis).length===0 ? badge('該当','bad') : '<span class="muted">—</span>'; }},
         {label:'知っている人が1人', render:function(e){ return e.ceoOnlyKnows ? badge('該当','warn') : '<span class="muted">—</span>'; }},
         {label:'', cls:'actions', render:function(e){ return btn('編集','empEdit',{id:e.id}); }}
@@ -347,7 +347,7 @@ VIEWS.org = {
     h += card('組織図（直属の上司でつないだもの）', tree, {icon:'sitemap'});
 
     /* 権限一覧 */
-    var rows = sortBy(d.employees.filter(function(e){ return (e.authority||'').trim() || (e.approvals||'').trim(); }),
+    var rows = sortBy(d.employees.filter(function(e){ return String(e.authority||'').trim() || String(e.approvals||'').trim(); }),
                       function(e){ return (e.dept||'')+e.name; });
     h += card('権限・承認の一覧', tableHtml([
       {label:'氏名', width:'130px', render:function(e){ return '<b>'+esc(e.name)+'</b><div class="small muted">'+esc(e.dept||'')+'</div>'; }},

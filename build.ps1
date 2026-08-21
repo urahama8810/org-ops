@@ -10,6 +10,25 @@ $src  = Join-Path $root 'src'
 $dist = Join-Path $root 'dist'
 $out  = Join-Path $dist '評価制度・組織管理アプリ.html'
 
+# --- ビルドの前に、必ず検査を通す ---------------------------
+#  ここで止まったら、公開用ファイルは作られません。
+#  「直したつもりが別のところを壊していた」を防ぐための関所です。
+$node = Get-Command node -ErrorAction SilentlyContinue
+if ($node) {
+  Write-Host "検査を実行しています..." -ForegroundColor Cyan
+  & node (Join-Path $root 'test/all.js')
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "検査で問題が見つかったため、ビルドを中止しました。" -ForegroundColor Red
+    Write-Host "上に出ている内容を直してから、もう一度 build.ps1 を実行してください。" -ForegroundColor Red
+    exit 1
+  }
+  Write-Host "検査に合格しました。ビルドを続けます。" -ForegroundColor Green
+} else {
+  Write-Host "Node.js が見つからないため、検査を飛ばしました。" -ForegroundColor Yellow
+}
+# ------------------------------------------------------------
+
 if (-not (Test-Path $dist)) { New-Item -ItemType Directory -Path $dist | Out-Null }
 
 $utf8 = New-Object System.Text.UTF8Encoding($false)

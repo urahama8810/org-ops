@@ -33,6 +33,7 @@ function openModal(opts){
     '</div>';
   document.body.appendChild(back);
   document.body.style.overflow = 'hidden';
+  back._gen = DB.gen;               /* 開いた時点のデータの世代を控える */
   _modalStack.push(back);
   back.addEventListener('click', function(e){
     /* アイコン(svg)が e.target になることがあるので、closest で親のボタンまでたどる */
@@ -42,6 +43,18 @@ function openModal(opts){
   if(opts.onMount) opts.onMount(back);
   return back;
 }
+
+/* ふきだしを開いたあとに、共有先からの取り込みやバックアップの復元で
+   データが丸ごと入れ替わることがある。そのとき、このふきだしが掴んでいる記録は
+   新しいデータのどこにも繋がっておらず、書き込んでも保存されない。
+   「保存しました」と出るのに何も残らないのを防ぐため、書き込む前に必ず確かめる。 */
+function modalIsStale(el){
+  var back = (el && el.closest) ? el.closest('.modal-back') : null;
+  if(!back || back._gen === undefined) return false;
+  return back._gen !== DB.gen;
+}
+var STALE_MSG = 'ほかの端末から新しいデータが届いたため、開いていた内容は古くなりました。'+
+                '保存しても残らないので、いったん閉じて開き直してください。';
 
 /* 閉じてよいかを確かめてから閉じる。
    入力途中のフォームでは、確認をはさむ（back.beforeClose が false を返す） */
@@ -69,6 +82,7 @@ function confirmDialog(title, message, onOk, okLabel){
          '<button class="btn danger" id="cfmOk">'+esc(okLabel||'実行する')+'</button>',
     onMount:function(root){
       root.querySelector('#cfmOk').addEventListener('click', function(){
+        if(modalIsStale(root)){ toast(STALE_MSG,'bad'); closeAllModals(); try{ render(); }catch(e){} return; }
         closeModal(); onOk();
       });
     }
@@ -96,6 +110,13 @@ function fieldHtml(f, val){
     inner = '<textarea name="'+name+'" '+(f.required?'required':'')+' rows="'+(f.rows||3)+'" placeholder="'+esc(f.placeholder||'')+'">'+esc(tv)+'</textarea>';
   }else if(f.type === 'select'){
     inner = '<select name="'+name+'" '+(f.required?'required':'')+'>';
+    /* 保存されている値が選択肢にないとき（担当者を削除した・職種名を変えた・期を消した等）、
+       黙って消したり先頭の選択肢に化けたりしないよう、その値を選択肢として残す */
+    var _has = (v === '' || v === undefined || v === null);
+    (f.options||[]).forEach(function(o){
+      if(String((typeof o === 'object') ? o.value : o) === String(v)) _has = true;
+    });
+    if(!_has) inner += '<option value="'+esc(v)+'" selected>'+esc(v)+'（選択肢にありません）</option>';
     (f.options||[]).forEach(function(o){
       var ov = (typeof o === 'object') ? o.value : o;
       var ol = (typeof o === 'object') ? o.label : o;
@@ -143,6 +164,23 @@ function readForm(root, fields){
   return out;
 }
 
+/* 数字として読めない入力（カンマ区切り・全角数字・単位つきなど）が入っている欄の名前を返す。
+   数字の入力欄は、そうした入力を「空」として返す（画面には文字が見えたまま）。
+   これを見ないと空欄と区別できず、入力した値が黙って消えてしまう。 */
+function badNumFields(root, list){
+  var bad = [];
+  list.forEach(function(f){
+    if(f.type !== 'number') return;
+    var el = root.querySelector('[name="f_'+f.key+'"]');
+    if(el && el.validity && el.validity.badInput) bad.push(f.label);
+  });
+  return bad;
+}
+function badNumToast(bad){
+  toast('数字として読めない入力があります：'+bad.join('、')+
+        '（カンマ・全角数字・単位は使えません。半角数字だけで入れてください）', 'bad');
+}
+
 /* 入力フォームをモーダルで開く */
 function openForm(opts){
   var fields = opts.fields;
@@ -156,6 +194,21 @@ function openForm(opts){
     onMount:function(root){
       var form = root.querySelector('#mForm');
       function submit(){
+        /* 開いている間にデータが入れ替わっていたら、書き込む前に伝える
+           （必須の指摘より先。埋めても保存できない状態なので） */
+        if(modalIsStale(form)){ toast(STALE_MSG, 'bad'); return; }
+        /* 数字として読めない入力の検査。必須チェックより先に見る
+           （画面に数字が見えているのに「未入力」と出ると、理由が分からないため） */
+        var badNum = badNumFields(form, fields);
+        if(badNum.length){
+          badNumToast(badNum);
+          for(var bi=0; bi<fields.length; bi++){
+            if(fields[bi].type !== 'number') continue;
+            var be = form.querySelector('[name="f_'+fields[bi].key+'"]');
+            if(be && be.validity && be.validity.badInput){ be.focus(); break; }
+          }
+          return;
+        }
         /* 必須チェック */
         var miss = [];
         fields.forEach(function(f){
@@ -305,6 +358,13 @@ function printHtml(title, bodyHtml){
    共有で使っていると、他の人が消した記録のボタンが画面に残っていることがある。
    そのまま押しても何も起きないと戸惑うので、理由を伝えて画面を作り直す。 */
 function runAction(fn, name, ds, el, ev){
+  /* 古くなったふきだしの中のボタンは、押しても保存されない。作り直してもらう */
+  if(modalIsStale(el)){
+    toast(STALE_MSG, 'bad');
+    closeAllModals();
+    try{ render(); }catch(e2){}
+    return;
+  }
   try{
     fn(ds, el, ev);
   }catch(err){

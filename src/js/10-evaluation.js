@@ -305,6 +305,7 @@ action('evalOpen', function(ds){
          '<button class="btn primary" id="evSave">保存</button>',
     onMount:function(root){
       root.querySelector('#evSave').addEventListener('click', function(){
+        if(modalIsStale(root)){ toast(STALE_MSG,'bad'); return; }
         var f = root.querySelector('#evForm');
         items.forEach(function(it){
           var s = f.querySelector('input[name="self_'+it.key+'"]:checked');

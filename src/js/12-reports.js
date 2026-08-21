@@ -25,11 +25,13 @@ VIEWS.reports = {
       return '<button type="button" class="tab '+(repTab===t.key?'active':'')+'" data-act="repTab" data-t="'+t.key+'">'+esc(t.label)+n+'</button>';
     }).join('')+'</div>';
 
-    if(repTab === 'rules')      h += renderRules();
-    if(repTab === 'log')        h += renderReportLog(false);
-    if(repTab === 'approval')   h += renderReportLog(true);
-    if(repTab === 'incidents')  h += renderIncidents();
-    if(repTab === 'exceptions') h += renderExceptions();
+    /* どのタブにも当たらないとき（保存された値が古い等）は、最初のタブを出す。
+       else でつなぐことで、中身が丸ごと空になるのを防ぐ */
+    if(repTab === 'log')             h += renderReportLog(false);
+    else if(repTab === 'approval')   h += renderReportLog(true);
+    else if(repTab === 'incidents')  h += renderIncidents();
+    else if(repTab === 'exceptions') h += renderExceptions();
+    else                             h += renderRules();
     return h;
   }
 };
@@ -183,7 +185,8 @@ action('repEdit', function(ds){
   openForm({ title:'記録の編集', wide:true, fields:reportFields(!!r.needApproval), value:r,
     onSubmit:function(v){
       v.id = r.id; v.needApproval = r.needApproval;
-      DB.data.reports[DB.data.reports.indexOf(r)] = v; DB.save(); render(); toast('保存しました','ok');
+      if(!replaceById(DB.data.reports, r.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok');
     } });
 });
 action('repApprove', function(ds){
@@ -281,7 +284,9 @@ action('incNew', function(){
 action('incEdit', function(ds){
   var i = byId(DB.data.incidents, ds.id); if(!i) return;
   openForm({ title:'問題処理の編集', wide:true, fields:incidentFields(), value:i,
-    onSubmit:function(v){ v.id=i.id; v.doneAt=i.doneAt; DB.data.incidents[DB.data.incidents.indexOf(i)]=v; DB.save(); render(); toast('保存しました','ok'); } });
+    onSubmit:function(v){ v.id=i.id; v.doneAt=i.doneAt;
+      if(!replaceById(DB.data.incidents, i.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok'); } });
 });
 action('incDone', function(ds){
   var i = byId(DB.data.incidents, ds.id); if(!i) return;
@@ -346,7 +351,9 @@ action('excNew', function(){
 action('excEdit', function(ds){
   var x = byId(DB.data.exceptions, ds.id); if(!x) return;
   openForm({ title:'例外の編集', wide:true, fields:EXC_FIELDS, value:x,
-    onSubmit:function(v){ v.id=x.id; DB.data.exceptions[DB.data.exceptions.indexOf(x)]=v; DB.save(); render(); toast('保存しました','ok'); } });
+    onSubmit:function(v){ v.id=x.id;
+      if(!replaceById(DB.data.exceptions, x.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok'); } });
 });
 action('excDel', function(ds){
   var x = byId(DB.data.exceptions, ds.id); if(!x) return;

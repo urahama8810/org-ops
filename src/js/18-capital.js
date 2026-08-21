@@ -35,7 +35,10 @@ function capitalSummary(period){
   });
   var periods = (DB.data.capital && DB.data.capital.periods) || [];
   var p = period ? periods.filter(function(x){ return x.label===period; })[0] : null;
-  var profit = p ? num(p.profit,0) : periods.reduce(function(s,x){ return s+num(x.profit,0); }, 0);
+  /* 期を指定したのに、その期が見つからない（あとから削除した等）場合に
+     全期の利益で割ってしまうと、再投資率が実態とかけ離れる。0として扱う */
+  var profit = period ? (p ? num(p.profit,0) : 0)
+                      : periods.reduce(function(s,x){ return s+num(x.profit,0); }, 0);
   sum.profit = profit;
   sum.rate = profit>0 ? Math.round(sum.reinvest/profit*100) : null;
   sum.nonBizRate = profit>0 ? Math.round(sum.nonbiz/profit*100) : null;
@@ -227,13 +230,33 @@ function renderPartners(){
 /* ---------- 操作 ---------- */
 action('capTab', function(ds){ capTab = ds.t; render(); });
 
+var CAP_RULE_DEFAULTS = { reinvestRate:50, nonBizCap:0 };
+var CAP_RULE_LABELS   = { reinvestRate:'利益に対する再投資率（％）', nonBizCap:'事業と関係ない支出の年間上限（円）' };
+function isCapRuleNumKey(k){ return k==='reinvestRate' || k==='nonBizCap'; }
+
 action('capRuleSave', function(){
   var view = document.getElementById('view');
   var r = capitalRule();
-  ['reinvestRate','nonBizCap','approver','note'].forEach(function(k){
+  var keys = ['reinvestRate','nonBizCap','approver','note'];
+
+  /* 数字の欄を先に検査し、不正なら一切保存しない
+     （空欄のまま 0 で保存すると、決めたはずの枠が消えてしまうため） */
+  var ngKey = null;
+  keys.forEach(function(k){
+    if(ngKey || !isCapRuleNumKey(k)) return;
     var el = view.querySelector('[name="f_'+k+'"]');
     if(!el) return;
-    r[k] = (k==='reinvestRate'||k==='nonBizCap') ? num(el.value) : el.value;
+    if(el.value === '' || (el.validity && el.validity.badInput) || !isFinite(parseFloat(el.value))) ngKey = k;
+  });
+  if(ngKey){
+    toast('「'+CAP_RULE_LABELS[ngKey]+'」は半角数字で入れてください。空欄やカンマ付きは保存できません。', 'bad');
+    return;
+  }
+
+  keys.forEach(function(k){
+    var el = view.querySelector('[name="f_'+k+'"]');
+    if(!el) return;
+    r[k] = isCapRuleNumKey(k) ? num(el.value, CAP_RULE_DEFAULTS[k]) : el.value;
   });
   DB.data.capital.rule = r;
   DB.save(); render(); toast('再投資ルールを保存しました','ok');
@@ -403,7 +426,7 @@ action('parNew', function(){
     intro:'<b>相手が何を得たいのかを書けない相手とは、どこかで期待のずれが出ます。</b>'+
           '想定と違ったときに慌てないよう、始める前に、お互いの狙いと終わり方を言葉にしておきます。',
     fields:PARTNER_FORM(),
-    value:{ kind:'スポンサー', startDate:todayStr(), checkCycle:'3か月に1回' },
+    value:{ kind:'出資者', startDate:todayStr(), checkCycle:'3か月に1回' },
     onSubmit:function(v){
       v.id = uid('par'); v.createdAt = nowIso();
       DB.data.partners.push(v); DB.save(); render(); toast('登録しました','ok');

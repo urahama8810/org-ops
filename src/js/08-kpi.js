@@ -63,7 +63,7 @@ VIEWS.kpi = {
       { label:'目標', cls:'num', width:'90px', render:function(r){ return esc(r.target); } },
       { label:'実績', cls:'num', width:'110px', render:function(r){
           return '<input type="number" step="any" value="'+esc(r.actual)+'" data-change="kpiActual" '+
-                 'data-w="'+w.id+'" data-r="'+r.id+'" style="text-align:right;padding:4px 6px;">'; } },
+                 'data-w="'+esc(w.id)+'" data-r="'+esc(r.id)+'" style="text-align:right;padding:4px 6px;">'; } },
       { label:'差', cls:'num', width:'70px', render:function(r){
           var g = kpiGap(r); if(g==='') return '<span class="muted">—</span>';
           var st = kpiRowStatus(r);
@@ -208,6 +208,7 @@ action('kpiImport', function(ds){
     foot:'<button class="btn" data-modal-close>キャンセル</button><button class="btn primary" id="impOk">取り込む</button>',
     onMount:function(root){
       root.querySelector('#impOk').addEventListener('click', function(){
+        if(modalIsStale(root)){ toast(STALE_MSG,'bad'); closeAllModals(); try{ render(); }catch(e){} return; }
         var n = 0;
         root.querySelectorAll('input[type=checkbox]:checked').forEach(function(cb){
           var c = candidates[num(cb.dataset.i)];
@@ -271,7 +272,10 @@ action('kpiRowEdit', function(ds){
       '実績を入力すると、状態が自動判定されます。',
     onSubmit:function(v){
       v.id = r.id; v.doneAt = r.doneAt; v.goalId = r.goalId;
-      w.rows[w.rows.indexOf(r)] = v; DB.save(); render(); toast('保存しました','ok');
+      /* 週ごと引き直す（開いている間に共有先からデータが届いていることがある） */
+      var w2 = byId(DB.data.kpiWeeks, ds.w);
+      if(!w2 || !replaceById(w2.rows, r.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok');
     } });
 });
 action('kpiRowDel', function(ds){
@@ -297,6 +301,11 @@ action('kpiRowUndone', function(ds){
 action('kpiActual', function(ds, el){
   var w = byId(DB.data.kpiWeeks, ds.w); if(!w) return;
   var r = byId(w.rows, ds.r); if(!r) return;
+  if(el.validity && el.validity.badInput){
+    toast('数字として読めません。カンマ・全角数字・単位を使わず、半角数字だけで入れてください。','bad');
+    if(el.value === '') el.value = r.actual;   /* 消えたように見えないよう、元の数字を戻す */
+    return;
+  }
   r.actual = el.value === '' ? '' : num(el.value);
   DB.save();
   /* 画面全体を描き直すと入力中の欄から離れてしまうので、その行だけ書き換える */
@@ -451,7 +460,9 @@ action('kpiMeetRowEdit', function(ds){
     intro:'<b>その場で決めます。</b>対策・責任者・期限のいずれかが空欄のまま会議を終えないでください。',
     onSubmit:function(v){
       v.id = r.id; v.doneAt = r.doneAt; v.goalId = r.goalId;
-      w.rows[w.rows.indexOf(r)] = v; DB.save();
+      var w2 = byId(DB.data.kpiWeeks, ds.w);
+      if(!w2 || !replaceById(w2.rows, r.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save();
       if(top && top._redraw) top._redraw();
     }
   });

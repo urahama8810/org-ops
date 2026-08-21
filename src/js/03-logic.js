@@ -8,15 +8,15 @@
    それ以外は、落ち着いてから埋めればよい項目。 */
 var LEDGER_CHECKS = [
   { key:'manager',   label:'直属の上司',      core:true, test:function(e){ return !!e.manager || e.isTop; } },
-  { key:'role',      label:'役割',            core:true, test:function(e){ return !!(e.roleTitle||'').trim(); } },
-  { key:'output',    label:'成果物',          core:true, test:function(e){ return !!(e.deliverables||'').trim(); } },
+  { key:'role',      label:'役割',            core:true, test:function(e){ return !!String(e.roleTitle||'').trim(); } },
+  { key:'output',    label:'成果物',          core:true, test:function(e){ return !!String(e.deliverables||'').trim(); } },
   { key:'kpi',       label:'KPI',             core:true, test:function(e){ return lines(e.kpis).length >= 1; } },
-  { key:'approval',  label:'承認が必要なこと',core:true, test:function(e){ return !!(e.approvals||'').trim(); } },
+  { key:'approval',  label:'承認が必要なこと',core:true, test:function(e){ return !!String(e.approvals||'').trim(); } },
   { key:'duties',    label:'主な仕事',        test:function(e){ return lines(e.mainDuties).length >= 3; } },
-  { key:'target',    label:'目標値',          test:function(e){ return !!(e.kpiTarget||'').trim(); } },
-  { key:'dataSrc',   label:'数字の出どころ',  test:function(e){ return !!(e.dataSource||'').trim(); } },
-  { key:'authority', label:'決めてよい範囲',  test:function(e){ return !!(e.authority||'').trim(); } },
-  { key:'handover',  label:'資料の保存場所',  test:function(e){ return !!(e.handover||'').trim(); } }
+  { key:'target',    label:'目標値',          test:function(e){ return !!String(e.kpiTarget||'').trim(); } },
+  { key:'dataSrc',   label:'数字の出どころ',  test:function(e){ return !!String(e.dataSource||'').trim(); } },
+  { key:'authority', label:'決めてよい範囲',  test:function(e){ return !!String(e.authority||'').trim(); } },
+  { key:'handover',  label:'資料の保存場所',  test:function(e){ return !!String(e.handover||'').trim(); } }
 ];
 
 /* 土台の5項目が埋まっているか */
@@ -108,8 +108,9 @@ function latestKpiWeek(){
 }
 function kpiWeekSummary(w){
   if(!w) return { ok:0, watch:0, ng:0, none:0, total:0, unresolved:0 };
-  var s = { ok:0, watch:0, ng:0, none:0, total:w.rows.length, unresolved:0 };
-  w.rows.forEach(function(r){
+  var rows = w.rows || [];                       /* 記録が壊れていても落ちないようにする */
+  var s = { ok:0, watch:0, ng:0, none:0, total:rows.length, unresolved:0 };
+  rows.forEach(function(r){
     var st = kpiRowStatus(r);
     s[st]++;
     if((st==='ng'||st==='watch') && (!String(r.action||'').trim() || !String(r.owner||'').trim() || !String(r.due||'').trim())) s.unresolved++;
@@ -132,7 +133,9 @@ function reportDeadlineStatus(rep){
   if(!rep.knownAt || !rep.reportedAt) return { cls:'warn', label:'未報告' };
   var h = hoursBetween(rep.knownAt, rep.reportedAt);
   if(h <= rule.hours) return { cls:'ok', label:'期限内（'+Math.max(0,Math.round(h*10)/10)+'時間）' };
-  return { cls:'bad', label:'遅延（'+Math.round(h)+'時間）' };
+  /* 24.4時間を四捨五入して「遅延（24時間）」と出ると、期限内と見分けがつかない。
+     少しでも超えていたら、切り上げて必ず期限より大きい数字にする */
+  return { cls:'bad', label:'遅延（'+Math.max(rule.hours+1, Math.ceil(h))+'時間）' };
 }
 function reportCompliance(){
   var reps = DB.data.reports;
@@ -153,7 +156,8 @@ function evalScore(ev){
   var items = evalItemsFor(ev.type);
   var sum = 0, weight = 0;
   items.forEach(function(it){
-    var v = num((ev.scores||{})[it.key], 0);
+    /* 点数は1〜4。記録が壊れていても、範囲の外の値で平均が壊れないようにする */
+    var v = clamp(num((ev.scores||{})[it.key], 0), 0, 4);
     if(v > 0){ sum += v*it.weight; weight += it.weight; }
   });
   if(!weight) return null;
@@ -163,14 +167,16 @@ function evalSelfScore(ev){
   var items = evalItemsFor(ev.type);
   var sum = 0, weight = 0;
   items.forEach(function(it){
-    var v = num((ev.selfScores||{})[it.key], 0);
+    var v = clamp(num((ev.selfScores||{})[it.key], 0), 0, 4);
     if(v > 0){ sum += v*it.weight; weight += it.weight; }
   });
   if(!weight) return null;
   return Math.round(sum/weight*100)/100;
 }
 function evalGradeLabel(score){
-  if(score === null) return { label:'未評価', cls:'neutral' };
+  /* 点が付いていない・数として読めない場合は「未評価」。
+     ここを漏らすと、まだ評価していない人が「1 未達」と表示されてしまう */
+  if(score === null || score === undefined || !isFinite(score)) return { label:'未評価', cls:'neutral' };
   if(score >= 3.5) return { label:'4 期待を上回る', cls:'ok' };
   if(score >= 2.75) return { label:'3 期待どおり',   cls:'ok' };
   if(score >= 1.75) return { label:'2 一部未達',     cls:'warn' };
@@ -204,7 +210,9 @@ function hasActivePlan(empId){
 /* ---------- 目標の進捗 ---------- */
 function goalProgress(g){
   var base = num(g.baseline, 0), cur = num(g.current, 0), tgt = num(g.target90, 0);
-  if(g.target90 === '' || g.target90 === undefined) return null;
+  if(g.target90 === '' || g.target90 === undefined || g.target90 === null) return null;
+  /* 最新値が空なら「まだ測っていない」。0扱いにすると、下げる目標が100%達成に見えてしまう */
+  if(g.current  === '' || g.current  === undefined || g.current  === null) return null;
   if(tgt === base) return cur >= tgt ? 100 : 0;
   var p = (cur - base) / (tgt - base) * 100;
   return clamp(Math.round(p), 0, 100);
@@ -232,7 +240,7 @@ function buildAlerts(){
     add('bad','直属の上司が未記入の人が'+noMgr.length+'名',
         noMgr.map(function(e){return e.name;}).join('、')+' — 誰に報告し、誰に相談するかを決めます。','employees',noMgr.length);
 
-  var noOut = d.employees.filter(function(e){ return !(e.deliverables||'').trim(); });
+  var noOut = d.employees.filter(function(e){ return !String(e.deliverables||'').trim(); });
   if(noOut.length)
     add('warn','成果物が未記入の人が'+noOut.length+'名',
         '「何ができていれば、その仕事は終わりか」を決めて記入します。','employees',noOut.length);
@@ -242,7 +250,7 @@ function buildAlerts(){
     add('warn','KPIが未記入の人が'+noKpi.length+'名',
         '数字で成果を確かめられる指標を、1〜3個決めます。','employees',noKpi.length);
 
-  var noData = d.employees.filter(function(e){ return lines(e.kpis).length>0 && !(e.dataSource||'').trim(); });
+  var noData = d.employees.filter(function(e){ return lines(e.kpis).length>0 && !String(e.dataSource||'').trim(); });
   if(noData.length)
     add('warn','数字の出どころが未記入の人が'+noData.length+'名',
         'KPIはあるものの、どのファイルの数字を基準にするかが決まっていません。','employees',noData.length);
@@ -252,7 +260,7 @@ function buildAlerts(){
     add('warn','中身を知っているのが1人だけの仕事が'+onlyCeo.length+'件',
         '手順の記録と引き継ぎ先を決めておくと、休みや異動があっても仕事が止まりません。','employees',onlyCeo.length);
 
-  var noBackup = d.employees.filter(function(e){ return !(e.backup||'').trim(); });
+  var noBackup = d.employees.filter(function(e){ return !String(e.backup||'').trim(); });
   if(noBackup.length >= Math.max(1, Math.ceil(d.employees.length*0.5)) && d.employees.length)
     add('warn','引き継ぎ先が未記入の人が'+noBackup.length+'名',
         '休みや急な異動のときに、誰が引き継ぐかを決めておきます。','employees',noBackup.length);
@@ -275,7 +283,7 @@ function buildAlerts(){
   var goalNoOwner = d.goals.filter(function(g){ return !g.owner; });
   if(goalNoOwner.length)
     add('warn','責任者が未設定の目標が'+goalNoOwner.length+'件','目標には必ず1名の責任者を置きます。','goals',goalNoOwner.length);
-  var goalNoData = d.goals.filter(function(g){ return !(g.dataSource||'').trim(); });
+  var goalNoData = d.goals.filter(function(g){ return !String(g.dataSource||'').trim(); });
   if(goalNoData.length)
     add('warn','「正とするデータ」が未設定の目標が'+goalNoData.length+'件','どの数字を正とするかで揉めなくなります。','goals',goalNoData.length);
 

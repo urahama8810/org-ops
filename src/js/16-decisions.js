@@ -84,7 +84,10 @@ function decisionStats(){
   var vFull = vens.filter(function(v){ return ventureFill(v).rate===100; }).length;
   var vExit = vens.filter(function(v){ return String(v.exitCond||'').trim(); }).length;
   return {
-    total:decs.length, decided:decided.length, holding:decs.filter(function(x){return x.stage==='holding'||x.stage==='draft';}).length,
+    /* 「検討中」は、確定でも見送りでもないものすべて。
+       段階の名前を1つずつ並べると、増やしたときに数え漏れる */
+    total:decs.length, decided:decided.length,
+    holding:decs.filter(function(x){ return x.stage!=='decided' && x.stage!=='dropped'; }).length,
     holdRate: decided.length ? Math.round(kept/decided.length*100) : null,
     ventures:vens.length, started:vStarted.length,
     sheetRate: vens.length ? Math.round(vFull/vens.length*100) : null,
@@ -261,7 +264,7 @@ action('decNew', function(){
     value:{ kind:'people', raisedAt:fmtDateTimeLocal(new Date()) },
     onSubmit:function(v){
       v.id = uid('dec'); v.createdAt = nowIso(); v.stage = 'holding'; v.cooled = false;
-      if(v.raisedAt) v.raisedAt = new Date(v.raisedAt).toISOString();
+      if(v.raisedAt) v.raisedAt = toIso(v.raisedAt);
       DB.data.decisions.push(v); DB.save(); render();
       toast('登録しました。24時間おいてから確定できます。','ok');
     }
@@ -292,7 +295,7 @@ action('decEdit', function(ds){
     submitLabel:'保存',
     onSubmit:function(v){
       for(var k in v) rec[k] = v[k];
-      if(rec.raisedAt) rec.raisedAt = new Date(rec.raisedAt).toISOString();
+      if(rec.raisedAt) rec.raisedAt = toIso(rec.raisedAt);
       DB.save(); render(); toast('保存しました','ok');
     }
   });
@@ -373,7 +376,7 @@ action('venNew', function(){
     value:{ raisedAt:fmtDateTimeLocal(new Date()) },
     onSubmit:function(v){
       v.id = uid('ven'); v.createdAt = nowIso(); v.stage = 'draft';
-      if(v.raisedAt) v.raisedAt = new Date(v.raisedAt).toISOString();
+      if(v.raisedAt) v.raisedAt = toIso(v.raisedAt);
       DB.data.ventures.push(v); DB.save(); render();
       toast('登録しました。48時間の保留に入ります。','ok');
     }
@@ -394,7 +397,7 @@ action('venEdit', function(ds){
     value:withLocalRaisedAt(rec), submitLabel:'保存',
     onSubmit:function(v){
       for(var k in v) rec[k] = v[k];
-      if(rec.raisedAt) rec.raisedAt = new Date(rec.raisedAt).toISOString();
+      if(rec.raisedAt) rec.raisedAt = toIso(rec.raisedAt);
       DB.save(); render(); toast('保存しました','ok');
     }
   });

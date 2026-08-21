@@ -64,15 +64,20 @@ function navCount(key){
 }
 
 function renderNav(){
-  var alerts = buildAlerts();
   var attn = {};
-  alerts.forEach(function(a){ if(a.level==='bad') attn[a.view] = (attn[a.view]||0)+1; });
+  /* 集計でつまずいても、メニューそのものは必ず出す（件数バッジが消えるだけで済ませる） */
+  try{
+    buildAlerts().forEach(function(a){ if(a.level==='bad') attn[a.view] = (attn[a.view]||0)+1; });
+  }catch(err){
+    if(typeof console !== 'undefined' && console.error) console.error('renderNav/buildAlerts', err);
+  }
 
   var h = '';
   NAV.forEach(function(g){
     if(g.group) h += '<div class="nav-group">'+esc(g.group)+'</div>';
     g.items.forEach(function(it){
-      var n = navCount(it.key);
+      var n = 0;
+      try{ n = navCount(it.key); }catch(err){ n = 0; }
       var bad = attn[it.key];
       var v = VIEWS[it.key];
       h += '<button type="button" class="nav-item '+(currentView===it.key?'active':'')+'" '+
@@ -88,16 +93,36 @@ function renderNav(){
   return h;
 }
 
+/* 左メニューが丸ごと作れなかったときの、集計を一切しない最低限のメニュー。
+   これがあると、どこかの記録が壊れていても他の画面へ移動できる。 */
+function renderNavPlain(){
+  var h = '';
+  NAV.forEach(function(g){
+    if(g.group) h += '<div class="nav-group">'+esc(g.group)+'</div>';
+    g.items.forEach(function(it){
+      h += '<button type="button" class="nav-item '+(currentView===it.key?'active':'')+'" '+
+        'data-act="go" data-view="'+it.key+'" title="'+esc(it.label)+'">'+
+        '<span class="lb">'+esc(it.label)+'</span></button>';
+    });
+  });
+  return h;
+}
+
 function render(){
   var v = VIEWS[currentView] || VIEWS.dashboard;
-  document.getElementById('nav').innerHTML = renderNav();
+  var navEl = document.getElementById('nav');
+  try{ navEl.innerHTML = renderNav(); }
+  catch(err){
+    if(typeof console !== 'undefined' && console.error) console.error('renderNav', err);
+    try{ navEl.innerHTML = renderNavPlain(); }catch(e2){}
+  }
 
   var d = DB.data;
   var company = d.settings.companyName;
   document.getElementById('brandTitle').textContent = company || '評価制度・組織運営';
   document.getElementById('brandSub').textContent = company ? '組織運営アプリ' : 'チームで使う運用アプリ';
   var mark = document.getElementById('brandMark');
-  if(mark) mark.textContent = company ? company.replace(/^(株式会社|有限会社|合同会社)/,'').charAt(0) : '評';
+  if(mark) mark.textContent = company ? String(company).replace(/^(株式会社|有限会社|合同会社)/,'').charAt(0) : '評';
 
   document.getElementById('topTitle').textContent = v.title;
   document.getElementById('topDesc').textContent = v.desc || '';
@@ -120,7 +145,16 @@ function render(){
   }
 
   var view = document.getElementById('view');
-  view.innerHTML = v.render();
+  /* 1つの画面が表示できなくても、アプリ全体は使えるようにする */
+  try{ view.innerHTML = v.render(); }
+  catch(err){
+    if(typeof console !== 'undefined' && console.error) console.error('view.render/'+currentView, err);
+    view.innerHTML = '<div class="empty" style="padding:40px 20px;">'+
+      '<div class="big">この画面を表示できませんでした</div>'+
+      '<div class="small muted">保存されている記録に、想定していない値が入っている可能性があります。<br>'+
+      '「設定・データ」からバックアップを保存したうえで、ご連絡ください。</div>'+
+      '<div class="btn-row"><button type="button" class="btn" data-act="go" data-view="settings">設定・データを開く</button></div></div>';
+  }
   view.scrollTop = 0;
   window.scrollTo(0,0);
   document.title = v.title + '｜' + (company ? company+' ' : '') + '組織運営アプリ';

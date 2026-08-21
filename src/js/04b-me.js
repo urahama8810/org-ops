@@ -91,7 +91,7 @@ VIEWS.me = {
     /* --- あいさつと、今週の要点 --- */
     h += '<div class="me-head">'+
       '<div class="me-who">'+
-        '<div class="me-avatar">'+esc(m.name.charAt(0))+'</div>'+
+        '<div class="me-avatar">'+esc(String(m.name||'？').charAt(0))+'</div>'+
         '<div><div class="me-name">'+esc(m.name)+'</div>'+
         '<div class="small muted">'+esc([m.dept, m.roleTitle, m.grade].filter(Boolean).join('　/　'))+'</div></div>'+
       '</div>'+
@@ -229,7 +229,7 @@ function renderMePicker(){
     return '<div class="pick-dept">'+esc(dept)+'</div><div class="pick-grid">'+
       byDept[dept].map(function(e){
         return '<button class="pick-card" data-act="meSet" data-id="'+esc(e.id)+'">'+
-          '<span class="av">'+esc(e.name.charAt(0))+'</span>'+
+          '<span class="av">'+esc(String(e.name||'？').charAt(0))+'</span>'+
           '<span class="nm">'+esc(e.name)+'</span>'+
           '<span class="rl">'+esc(e.roleTitle||e.jobType||'')+'</span></button>';
       }).join('')+'</div>';

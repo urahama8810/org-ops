@@ -97,7 +97,7 @@ function syncPayload(){
 }
 function syncApply(payload, from){
   if(!payload || !payload.data){ return false; }
-  DB.data = mergeDefaults(payload.data, emptyData());
+  DB.data = normalizeData(mergeDefaults(payload.data, emptyData())); DB.gen++;
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data)); }catch(e){}
   SYNC.lastPulledAt = payload.updatedAt || nowIso();
   SYNC.dirty = false;

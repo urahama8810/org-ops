@@ -135,7 +135,7 @@ function openImpForm(rec, empId){
       }
       if(rec){
         v.id = rec.id; v.weeklyChecks = rec.weeklyChecks; v.status = rec.status; v.result = rec.result;
-        DB.data.improvementPlans[DB.data.improvementPlans.indexOf(rec)] = v;
+        if(!replaceById(DB.data.improvementPlans, rec.id, v)){ toast(RECORD_GONE,'bad'); return false; }
       }else{
         v.id = uid('imp'); v.weeklyChecks = []; v.status = 'open'; v.result = '';
         DB.data.improvementPlans.push(v);

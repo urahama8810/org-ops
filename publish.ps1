@@ -17,6 +17,18 @@ Set-Location $root
 
 function Say($m, $c = 'White') { Write-Host $m -ForegroundColor $c }
 
+# --- 公開の前に、必ずビルドし直す ----------------------------
+#  build.ps1 の中で検査が走ります。1件でも失敗すればここで止まり、
+#  問題のあるファイルが公開まで進むことはありません。
+Say 'ビルドし直します（検査もここで走ります）...' 'Cyan'
+& (Join-Path $root 'build.ps1')
+if ($LASTEXITCODE -ne 0) {
+  Say ''
+  Say '検査またはビルドで問題が見つかったため、公開を中止しました。' 'Red'
+  exit 1
+}
+# ------------------------------------------------------------
+
 $app   = Join-Path $root 'dist\評価制度・組織管理アプリ.html'
 $guide = Join-Path $root 'guide\使い方レクチャー.html'
 $docs  = Join-Path $root 'docs'
@@ -38,15 +50,28 @@ Say "docs/index.html  $appKb KB"
 Say "docs/guide.html  $guideMb MB"
 
 # --- git ---
+#  git は注意書き（改行コードの警告など）を stderr に出すことがある。
+#  PowerShell はそれを「エラー」と見なして途中で止まってしまうため、
+#  ここだけは止めずに、終了コードで成否を判断する。
+$prevEA = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+
 & git add -A
+if ($LASTEXITCODE -ne 0) { $ErrorActionPreference = $prevEA; throw 'git add に失敗しました。' }
+
 $st = & git status --porcelain
 if ($st) {
   $msg = if ($Message) { $Message } else { "更新 $(Get-Date -Format 'yyyy-MM-dd HH:mm')" }
   & git commit -m $msg
+  if ($LASTEXITCODE -ne 0) { $ErrorActionPreference = $prevEA; throw 'git commit に失敗しました。' }
 } else {
   Say '変更はありません。' 'Yellow'
 }
+
 & git push
+$pushCode = $LASTEXITCODE
+$ErrorActionPreference = $prevEA
+if ($pushCode -ne 0) { throw 'git push に失敗しました。ネットワークとGitHubへのログインを確認してください。' }
 
 $owner = (& gh api user --jq '.login')
 Say ''

@@ -54,7 +54,7 @@ VIEWS.scorecards = {
 
     d.scorecards.forEach(function(s){
       var members = d.employees.filter(function(e){ return e.jobType === s.jobType; });
-      var filled = ['purpose','authority','approvals','reports','behaviors','gradeDiff'].filter(function(k){ return (s[k]||'').trim(); }).length
+      var filled = ['purpose','authority','approvals','reports','behaviors','gradeDiff'].filter(function(k){ return String(s[k]||'').trim(); }).length
                  + (lines(s.responsibilities).length?1:0) + (lines(s.kpis).length?1:0);
       var rate = Math.round(filled/8*100);
       var body = '<div class="grid c2">'+
@@ -100,7 +100,8 @@ action('scEdit', function(ds){
   openForm({ title:'役割表：'+s.jobType, wide:true, fields:SCORECARD_FIELDS, value:s,
     onSubmit:function(v){
       v.id = s.id;
-      DB.data.scorecards[DB.data.scorecards.indexOf(s)] = v; DB.save(); render(); toast('保存しました','ok');
+      if(!replaceById(DB.data.scorecards, s.id, v)){ toast(RECORD_GONE,'bad'); return false; }
+      DB.save(); render(); toast('保存しました','ok');
     }
   });
 });
